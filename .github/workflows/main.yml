@@ -33,3 +33,4 @@ jobs:
           # You need to provide a valid API key to connect the Quality Clouds ruleset against which your code will be checked
           token: ${{ secrets.API_TOKEN }}
           mode: cloud
+          # API_URL: 
