@@ -1,5 +1,7 @@
 public with sharing class HandlerAddTwoNumbers implements BotHandler {
 
+    public static String RELIGION   = 'Catholic';
+    
     public BotResponse handle(String utterance, String[] params, Map<String, String> session, String fileName, String fileContent) {
         if (session == null) {
             session = new Map<String, String>();
