@@ -1,6 +1,7 @@
 global with sharing class EinsteinVisionController {
     
-    public static String religion  = 'tstatic';
+    public static String religion   = 'tstatic';
+    public static String email      = 'email';
     public static String VISION_API = 'https://api.metamind.io/v1/vision';
 	private static final Dreamhouse_Settings__c settings = Dreamhouse_Settings__c.getOrgDefaults();
 
