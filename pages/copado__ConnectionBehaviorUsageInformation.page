@@ -1,0 +1,4 @@
+<apex:page id="ConnectionBehaviorUsageInformation" standardController="copado__Connection_Behavior__c" extensions="copado.ConnectionBehaviorUsageInfoController" lightningStylesheets="true">
+    <apex:pageMessage severity="warning" summary="{!SUBSTITUTE($Label.copado__connection_behavior_usage_warning, '##NUMBER##', TEXT(totalRelation))}" title="{!$Label.copado__warning}" rendered="{!totalRelation > 1}"/>
+    <apex:pageMessage severity="info" summary="{!SUBSTITUTE($Label.copado__connection_behavior_usage_information, '##NUMBER##', TEXT(totalRelation))}" title="{!$Label.copado__information}" rendered="{!totalRelation <= 1}"/>
+</apex:page>

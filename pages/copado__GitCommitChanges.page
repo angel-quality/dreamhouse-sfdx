@@ -1,0 +1,637 @@
+<apex:page controller="copado.GitCommitChangesController" tabStyle="copado__Git_Backup__c" extensions="copado.Settings,copado.JsRemotingController" title="New {!$ObjectType.copado__Git_Org_Commit__c.Label}" showHeader="{!$User.UIThemeDisplayed=='Theme3'}" standardStylesheets="true" sidebar="{!$User.UIThemeDisplayed=='Theme3'}" applyHtmlTag="{!$User.UIThemeDisplayed=='Theme3'}" applyBodyTag="false" docType="html-5.0" lightningStylesheets="true">
+    <head>
+        <c:GAnalytics />
+        <c:IncludeStaticsResourceComponent addJquery="true" addWizardcss="true" addCometdjs="true" addJcometdjs="true"/>
+        <apex:SLDS />
+        <c:WizardUtils />
+
+        <apex:includeScript value="{!URLFOR($Resource.statusManager) }" />
+        <apex:includeScript value="{!URLFOR($Resource.utilsV2) }"/> <!-- -->
+        <apex:includeScript value="{!URLFOR($Resource.JsRemoting) }"/>
+        <apex:includeScript value="{!URLFOR($Resource.copadoStreamingService) }" />
+
+        <c:IncludeJqxResourceComponent addjqxAlljs="true" addjqxBasecss="true"/>
+        <style type="text/css">
+            div.errorDetails:empty {
+             display: none;
+            }
+            .fullScreen {
+                position:absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                border: solid 1px #000000;
+                background-color: white;
+                z-index: 999;
+            }
+        </style>
+        <c:IncludeConnectionJsComponent />
+        <apex:stylesheet value="{!IF($User.UIThemeDisplayed == 'Theme4d',URLFOR($Resource.copado__CopadoLightningCSS),'')}" />
+        <script type="text/javascript">
+            var Copado_Licenses = {!CurrentUserLicenses};
+            var loadingHTML = '<center><img src="/img/loading.gif" /><i><span id="retry-label">{!$Label.copado__loading}</span></i></center>';
+
+            var copadoPageLabels = {
+                SELECT_AT_LEAST_ONE_ITEM : '{!JSENCODE($Label.copado__select_at_least_one_item)}',
+                ENTER_COMMIT_MESSAGE : '{!JSENCODE($Label.copado__enter_commit_message)}'
+            };
+
+            var _config = {
+                data:{
+                    orgId: '{!JSENCODE(orgId)}',
+                    repositoryId: '{!JSENCODE(repositoryId)}',
+                    snapshotId:'{!JSENCODE(snapshotId)}',
+                    userStoryId: '{!JSENCODE(userStoryId)}',
+                    branch: '{!JSENCODE(branch)}',
+                    mainBranch: '{!JSENCODE(baseBranch)}',
+                    type: '{!JSENCODE(selectedOperation.operationType)}',
+                    artifactsParentOrgId : '{!JSENCODE(artifactsParentOrgId)}',
+                    operationLabel: '{!JSENCODE(selectedOperation.operationLabel)}'
+                },
+                server: {
+                    metadataUrl: '{!JSENCODE(urlBase)}metadata/{!JSENCODE(orgId)}?{!JSENCODE(urlParameters)}&parentId={!JSENCODE(orgId)}&dates=format',
+                    commitUrl: '{!JSENCODE(urlBase)}__ENDPOINT__/__COMMITID__{!JSENCODE(urlParameters)}&orgId={!JSENCODE(orgId)}&gitBackupId={!JSENCODE(snapshotId)}&message=__MSG__&userStoryId={!JSENCODE(userStoryId)}',
+                    typesUrl: '{!JSENCODE(urlBase)}gitTypes{!JSENCODE(urlParameters)}',
+                    endpoint: '{!JSENCODE(selectedOperation.endpoint)}'
+                },
+                ns: '{!JSENCODE(namespace)}',
+                scalableGrid: {!scalableGrid},
+                gridMode: 'gitCommit',
+                attachmentName: 'MetaData'
+            };
+
+            // Var used if user changes Org Credential to reload the Grid Data
+            var gitCommitOrgId = '';
+
+            function prepareCommit(operationType, operationLabel, baseBranch, attachmentName, endpoint, formElementParams, showCommitMessage, selectedTableValues) {
+                if(!window._performCommit)
+                    return; // prevent being called at the beginning of the page load. Only when clicking the commit button
+
+                var newBaseBranch = '';
+                if(baseBranch && _config.data.mainBranch !== baseBranch) {
+                    newBaseBranch = baseBranch;
+                } else {
+                    newBaseBranch = _config.data.mainBranch;
+                }
+
+                var customSelections = selectedTableValues;
+
+                gitCommit.updateConfig(newBaseBranch, operationType, operationLabel, attachmentName, endpoint, formElementParams, customSelections, showCommitMessage);
+                gitCommit.doCommit();
+                updateUserStory();
+                return false;
+            }
+            var currentGridSize = '300px';
+            var toggleGridFullScreen = function(){
+                var gridSection = $copado('[Id$="metadataGridSection"]');
+                var grid = $copado('.mg2_jqxgrid');
+                if(!gridSection) return;
+                if(!grid) return;
+                var $btn = $copado('#fullScreen');
+                if(gridSection.hasClass('fullScreen')){
+                    gridSection.removeClass('fullScreen');
+                    $btn.val('{!JSENCODE($Label.copado__full_screen)}');
+                    grid.jqxGrid({ height: currentGridSize });
+                } else {
+                    gridSection.addClass('fullScreen');
+                    $btn.val('{!JSENCODE($Label.copado__exit_full_screen)}');
+                    grid.jqxGrid({ height: (gridSection.height() - 100).toString() });
+                }
+            }
+
+            function redirectToWaitingForPage(commitId) {
+                goToWaitingForPage(commitId);
+            }
+        </script>
+
+        <!-- RELOADCONFIG SCRIPT -->
+        <apex:outputPanel id="reloadConfig">
+            <script type="text/javascript">
+                window.setTimeout(prepareCommit, 1, '{!JSENCODE(selectedOperation.operationType)}', '{!JSENCODE(selectedOperation.operationLabel)}', '{!JSENCODE(baseBranch)}', '{!JSENCODE(selectedOperation.attachmentName)}', '{!JSENCODE(selectedOperation.endpoint)}', '{!JSENCODE(OperationFormElementParams)}', '{!selectedOperation.showCommitMessage}', '{!JSENCODE(selectedTableValues)}');
+            </script>
+        </apex:outputPanel>
+        <!-- / RELOADCONFIG SCRIPT -->
+
+
+        <apex:outputText rendered="{!$CurrentPage.parameters.dev == ''}">
+            <apex:includeScript value="{!URLFOR($Resource.JsRemoting) }"/>
+            <apex:includeScript value="{!URLFOR($Resource.metadataselector) }" />
+            <apex:includeScript value="{!URLFOR($Resource.gitCommit) }" />
+            <apex:includeScript value="{!URLFOR($Resource.gitCommitDXExtension) }" />
+            <script type="text/javascript" src="{!URLFOR($Resource.metadataGrid2) }" />
+        </apex:outputText>
+        <apex:outputText rendered="{!$CurrentPage.parameters.dev == '1'}">
+            <apex:includeScript value="https://mavens.local/copado%20dev/resource-bundles/Statics.resource/js/gitCommit.js" />
+        </apex:outputText>
+
+    </head>
+
+    <body>
+    <div class="copado-lightning-VF">
+        <apex:form id="theForm" onkeypress="return event.keyCode != 13;" styleClass="copado-lightning-container">
+            <apex:actionFunction name="goToWaitingForPage" action="{!goToWaitingForPage}" reRender="waitingforpage">
+                <apex:param name="commitId" value="" />
+            </apex:actionFunction>
+            <apex:outputPanel layout="block" styleClass="slds-scope">
+                <c:CopadoSmartHelpComponent />
+            </apex:outputPanel>
+
+            <c:ScreenLocker msg="{!$Label.copado__loading}" useJobsManager="true" possibleRunningJobs="{!possibleRunningJobs}"/>
+            <script type="text/javascript">
+                var processVlocityDependencies = function(){
+                     var attach = dw.u.getAttach('{!JSENCODE(userStoryId)}','VlocityDependencies');
+                     if(attach.length){
+                         var res = JSON.parse(Base64.decode(attach[0].Body));
+                         if(res && res.length) {
+                            var dependencies = res;
+                            var retrievedDependencies = gitCommit.forceVlocitySelections(dependencies);
+                            metadataGrid2.addItemsIfMissing(retrievedDependencies)
+                            metadataGrid2.reloadSelections(1);
+                            metadataGrid2._reapplyFilters();
+                         }else{
+                            console.info('Could not load Vlocity dependencies attachment!', res);
+                         }
+                     } else {
+                         console.error('Could not find dependencies attachment');
+                     }
+                }
+            </script>
+            <apex:pageMessages id="pmessage" rendered="{!$User.UIThemeDisplayed != 'Theme4d'}"/>
+            <apex:outputPanel rendered="{!$User.UIThemeDisplayed != 'Theme4d'}" layout="none">
+                <apex:sectionHeader title="{!$ObjectType.copado__Git_Org_Commit__c.LabelPlural}" subtitle="{!orgName} ➠ {!repoName} / {!branch}" description="{!$Label.copado__git_org_commit_description}" rendered="{!$User.UIThemeDisplayed != 'Theme4d'}" />
+            </apex:outputPanel>
+            <!-- LIGHTNING HEADER -->
+            <apex:outputPanel layout="block" styleClass="slds-scope" rendered="{!$User.UIThemeDisplayed == 'Theme4d'}">
+
+                <div class="slds-page-header" style="margin-bottom:12px;">
+                    <apex:outputPanel layout="block" id="pageMessages">
+                        <apex:pagemessages id="msg"/>
+                    </apex:outputPanel>
+                    <apex:outputPanel layout="block" style="padding-bottom:12px;">
+                        <c:JobsManager matchingKeys="GIT-{!repositoryId}-{!branch}"></c:JobsManager>
+                    </apex:outputPanel>
+                    <div class="slds-grid">
+                        <div class="slds-col slds-has-flexi-truncate">
+                            <div class="slds-media">
+                                <div class="slds-media__figure">
+                                  <span class="slds-icon_container slds-icon-custom-custom55" title="Description of icon when needed">
+                                    <svg class="slds-icon" aria-hidden="true">
+                                      <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/custom-sprite/svg/symbols.svg#custom55')}"></use>
+                                    </svg>
+                                  </span>
+                                </div>
+                                <div class="slds-media__body">
+                                    <p class="slds-text-heading--label slds-line-height--reset">{!$ObjectType.copado__Git_Org_Commit__c.LabelPlural}</p>
+                                    <h1 class="slds-page-header__title slds-truncate slds-align-middle" title="{!orgName} ➠ {!repoName} / {!branch}">{!orgName} ➠ {!repoName} / {!branch}</h1>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ACTION BUTTONS -->
+                        <div class="slds-col slds-no-flex slds-grid slds-align-top ">
+                            <div class="slds-button-group" role="group">
+
+                            </div>
+                        </div>
+                        <!-- / ACTION BUTTONS -->
+                    </div>
+                    <div class="slds-grid">
+                        <div class="slds-col slds-align-middle">
+                            <p class="slds-text-body_small">{!$Label.copado__git_org_commit_description}</p>
+                        </div>
+                    </div>
+                    <div style="background: white; height: 25px;">
+                        <!-- Header details buffer-->
+                    </div>
+                </div>
+            </apex:outputPanel>
+
+            <!-- END OF LIGHTNING HEADER -->
+            <c:JobsManager matchingKeys="GIT-{!repositoryId}-{!branch}" rendered="{!$User.UIThemeDisplayed != 'Theme4d'}"></c:JobsManager>
+
+            <apex:pageBlock id="fieldSets">
+                <apex:pageBlockSection title="{!$Label.copado__git_snapshot_fields}" id="sFields" showHeader="true" collapsible="true" rendered="{!showSnapshotInformation}">
+                    <apex:repeat value="{!$ObjectType.copado__Git_Backup__c.FieldSets.copado__Commit_Files_Information}" var="f">
+                        <apex:outputField value="{!gitBackup[f]}"/>
+                    </apex:repeat>
+                </apex:pageBlockSection>
+                <apex:pageBlockSection title="{!$Label.copado__user_story_fields}" id="usFields" showHeader="true" collapsible="true" rendered="{!IF(userStoryId != '',true,false)}">
+                    <apex:repeat value="{!$ObjectType.copado__User_Story__c.FieldSets.copado__Commit_Files_Information}" var="f">
+                        <apex:outputField value="{!userstory[f]}"/>
+                    </apex:repeat>
+                </apex:pageBlockSection>
+                <apex:pageBlockSection title="{!$Label.copado__user_story_fields}" id="usText" showHeader="true" collapsible="true" rendered="{!IF(userStoryId == '',true,false)}" columns="1">
+                    <apex:pageMessage title="" id="usMessage" summary="{!$Label.copado__git_user_story_commit_description}" severity="info" strength="1" rendered="{!IF(userStoryId == '',true,false)}"/>
+                </apex:pageBlockSection>
+            </apex:pageBlock>
+
+            <apex:pageBlock id="pb_newGitCommit"  mode="edit" helpUrl="https://docs.copado.com/git-snapshot/git-snapshot-overview" helpTitle="{!$Label.copado__help_for_this_page}" title="Select Metadata">
+
+                <!-- COMMIT CHANGES && CANCEL BUTTON -->
+                <apex:pageblockButtons location="top">
+                    <apex:commandButton id="operationButtonLabel" value="{!IF(ISBLANK(selectedOperation.operationButtonLabel),$Label.copado__commit_now,selectedOperation.operationButtonLabel)}" onclick="setLockScreenMessage('Loading...'); window._performCommit=true; lockScreen();commitChanges();return false;" />
+                    <apex:commandButton value="{!$Label.site.cancel}"  onclick="location.href='/{!IF(NOT(ISBLANK(userStoryId)),URLENCODE(userStoryId),IF(NOT(ISBLANK(snapshotId)),URLENCODE(snapshotId),URLENCODE(repositoryId)))}';return false;"/>
+                    <apex:outputPanel id="theButtons">
+                        <apex:commandButton value="Select DX Changes"  rendered="{!AND(isDXEnabled,gitBackup.Org__r.copado__Org_Type__c == 'Scratch Org',OR(gitCommit.copado__Git_Operation__c == 'Commit Files',gitCommit.copado__Git_Operation__c == 'Destructive Changes'))}" onclick="gitCommit&&gitCommit.autoSelect('{!JSENCODE(gitCommit.copado__Git_Operation__c)}'); return false;"/>
+                        <apex:commandButton value="Check Org Status"  rendered="{!AND(isDXEnabled,gitbackup.org__r.copado__Org_Type__c == 'Scratch Org',OR(gitCommit.copado__Git_Operation__c == 'Commit Files',gitCommit.copado__Git_Operation__c == 'Destructive Changes'))}" onclick="checkStatusRedirect(); return false;"/>
+                    </apex:outputPanel>
+                </apex:pageblockButtons>
+                <apex:actionFunction name="commitChanges" rerender="reloadConfig" action="{!checkMetadataIndex}"/>
+                <apex:actionFunction name="updateUserStory" action="{!updateUserStory}" onComplete="return false;" />
+                <!-- / COMMIT CHANGES && CANCEL BUTTON -->
+
+                <!-- OPERATION SELECT LIST -->
+                <apex:pageBlockSection columns="1" id="commitOperationPanel">
+                    <!-- OPERATION HELP -->
+                    <c:CopadoHelp id="operationHelp" styleAttributes="width:96%;{!IF(ISBLANK(selectedOperation.helpText),'display:none;','')}" sectionText="{!selectedOperation.helpText}" sectionLink="{!selectedOperation.helpLink}" />
+                    <!-- / OPERATION HELP -->
+                    <apex:pageBlockSectionItem >
+                        <apex:outputText value="{!$Label.copado__git_operation}"/>
+                        <apex:selectList id="gitOperation" styleClass="slds-select" style="width:95%;" value="{!gitCommit.copado__Git_Operation__c}" size="1" multiselect="false" onchange="lockScreen();reloadCommitDetailSection();">
+                            <apex:selectOptions value="{!operationTypes}" />
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                    <apex:actionFunction name="reloadCommitDetailSection" action="{!changeOperation}" rerender="commitDetailSection,operationButtonLabel,operationHelp,theButtons,advancedSection" oncomplete="reloadMetadataGrid();" />
+                </apex:pageBlockSection>
+                <!-- / OPERATION SELECT LIST -->
+
+                <apex:pageBlockSection columns="1" id="commitDetailSection">
+                    <!-- COMMIT MESSAGE -->
+                    <apex:inputField id="comment" value="{!gitCommit.copado__Commit_Message__c}" styleClass="js-message"
+                                     style="float: left; width:90%;" html-placeholder="Please enter here your message" rendered="{!selectedOperation.showCommitMessage}" />
+                    <script>
+                            var elt_commitMessage = document.getElementById("{!$Component.comment}");
+                        </script>
+                    <!-- / COMMIT MESSAGE -->
+
+                    <!-- OPERATION FORM ELEMENTS -->
+                    <apex:repeat value="{!selectedOperation.operationFormElements}" var="formElement" >
+
+                        <!-- ORG LOOKUP -->
+                        <apex:inputField value="{!gitCommit.copado__Org__c}" styleClass="makeSelectReadOnly" onchange="{!IF(selectedOperation.reloadGridData,'updateOrgId();','')}" rendered="{!formElement.type = 'orgLookup'}" />
+                        <!-- / ORG LOOKUP -->
+
+                        <!-- CHECKBOX -->
+                        <apex:inputCheckbox rendered="{!formElement.type = 'checkbox'}" label="{!formElement.label}" value="{!formElement.boolValue}" />
+                        <!-- / CHECKBOX -->
+
+                        <!-- TEXT -->
+                        <apex:inputText rendered="{!formElement.type = 'text'}" label="{!formElement.label}" value="{!formElement.value}"  />
+                        <!-- / TEXT -->
+
+                        <!-- FORM ELEMENT HELP -->
+                        <apex:pageBlockSectionItem rendered="{!!ISBLANK(formElement.helpText)}">
+                            <apex:outputText value=" "/>
+                            <apex:outputText value="{!JSENCODE(formElement.helpText)}" />
+                        </apex:pageBlockSectionItem>
+                        <!-- / FORM ELEMENT HELP -->
+
+                    </apex:repeat>
+                    <!-- / OPERATION FORM ELEMENTS -->
+
+                    <!-- ACTION FUNCTIONS -->
+                    <apex:actionFunction name="updateOrgId" rerender="reloadMetadataScript" oncomplete="reloadMetadataGrid();" />
+                    <!-- ACTION FUNCTIONS -->
+
+                    <!-- RELOAD METADATA GRID SCRIPT -->
+                    <apex:outputPanel id="reloadMetadataScript">
+                        <script type="text/javascript">
+
+                                // Git Operation - Show or Hide Grid
+                                if('{!selectedOperation.showGrid}' === 'true') {
+                                    $copado('.js-metadata-wrapper').show();
+                                } else {
+                                    $copado('.js-metadata-wrapper').hide();
+                                }
+
+                                function reloadMetadataGrid() {
+                                    if('{!selectedOperation.showGrid}' === 'true') {
+                                        // Set Grid Source Data
+                                        if(gitCommitOrgId != '{!JSENCODE(gitCommit.copado__Org__c)}') {
+                                            if('{!selectedOperation.reloadGridData}' === 'true') {
+                                                _config.data.orgId = '{!JSENCODE(gitCommit.copado__Org__c)}';
+                                                _config.server.metadataUrl = '{!JSENCODE(urlBase)}metadata/{!gitCommit.copado__Org__c}?{!JSENCODE(urlParameters)}&parentId={!JSENCODE(gitCommit.copado__Org__c)}&dates=format';
+                                            } else {
+                                                _config.data.orgId = '{!JSENCODE(orgId)}';
+                                                _config.server.metadataUrl = '{!JSENCODE(urlBase)}metadata/{!JSENCODE(orgId)}?{!JSENCODE(urlParameters)}&parentId={!JSENCODE(orgId)}&dates=format';
+                                            }
+                                        }
+                                        // Set Grid to load User Story selections
+                                        var originalUserStoryPreselectionId = _config.data.userStoryPreselectionId;
+                                        if('{!selectedOperation.showUserStorySelections}' === 'true') {
+                                            _config.data.userStoryPreselectionId = '{!JSENCODE(gitMetadataAttachmentId)}';
+                                        } else {
+                                            _config.data.userStoryPreselectionId = '';
+                                        }
+                                        // Set Grid as editable or non editable
+                                        var originalGridMode = _config.gridMode;
+                                        if('{!selectedOperation.editGrid}' === 'false') {
+                                            _config.gridMode = 'gitCommit';
+                                            //Set the Initial orgId
+                                            _config.data.orgId = '{!JSENCODE(orgId)}';
+                                        } else {
+                                           _config.gridMode = 'gitCommitEditable';
+                                        }
+                                        if(gitCommitOrgId != '{!JSENCODE(gitCommit.copado__Org__c)}' || originalGridMode != _config.gridMode || originalUserStoryPreselectionId != _config.data.userStoryPreselectionId) {
+                                            if(!gitCommit){
+                                                gitCommit.init(_config);
+                                            } else {
+                                                gitCommit.resetGrid(_config);
+                                                if(_config.data.userStoryPreselectionId){
+                                                    metadataGrid2.reloadSelections(1);
+                                                    metadataGrid2._reapplyFilters();
+                                                }else{
+                                                    metadataGrid2.reloadSelections(0);
+                                                    metadataGrid2._reapplyFilters();
+                                                }
+                                            }
+                                            gitCommitOrgId = '{!JSENCODE(gitCommit.copado__Org__c)}';
+                                        }
+                                        //If gridMetadataTypes defined, then we filter
+                                        var filter = '{!selectedOperation.gridMetadataTypes}';
+                                        if(filter && filter.length>0){
+                                            metadataGrid2.setGridFiltersByCSV(filter);
+                                        }
+                                    }
+                                    unlockScreen();
+                                }
+                            </script>
+                    </apex:outputPanel>
+                    <!-- / RELOAD METADATA GRID SCRIPT -->
+
+                    <!-- GIT COMMIT TABLE -->
+                    <apex:pageBlockTable id="pbTableCommits" value="{!snapshotCommitWrappers}" var="scw" styleClass="slds-table slds-table_bordered" html-cid="snapshotCommitsTable" rendered="{!selectedOperation.showTable && selectedOperation.tableSObject == 'USER_STORY_COMMIT__c'}">
+                        <apex:column id="col1" width="22">
+                            <apex:facet name="header">
+                                <input type="checkbox" id="chkAll" onclick="checkAll(this,'{!$Component.pbTableCommits}','chkCommit')" />
+                            </apex:facet>
+                            <apex:inputCheckbox id="chkCommit" value="{!scw.selected}" />
+                        </apex:column>
+                        <apex:column id="col2" width="20" headerValue="Commit" style="border-bottom: 1px solid #dddbda !important;">
+                            <apex:outputLink value="/{!scw.snapshotCommit.Id}">{!scw.snapshotCommit.Name}</apex:outputLink>
+                        </apex:column>
+                        <apex:column id="col3" value="{!scw.snapshotCommit.copado__Commit_Message__c}" width="60"/>
+                        <apex:column id="col4" value="{!scw.snapshotCommit.copado__Status__c}" width="30"/>
+                        <apex:column id="col5" value="{!scw.snapshotCommit.copado__Git_Operation__c}" width="30"/>
+                        <apex:column id="col6" value="{!scw.snapshotCommit.CreatedDate}" width="30"/>
+                    </apex:pageBlockTable>
+                    <!-- / GIT COMMIT TABLE -->
+
+                </apex:pageBlockSection>
+                <!-- / GIT OPERATION FORM ELEMENTS -->
+
+                <!-- METADATA GRID -->
+                <apex:pageBlockSection columns="1" id="metadataGridSection">
+                    <apex:outputPanel id="metadataGridWrapper" styleClass="js-metadata-wrapper">
+                        <div style="display: flex; margin-bottom: 2px">
+                            <div id="removeCacheContainer" style="width:100%; margin-top: 3px;">
+                                <a style="display:none;" onclick="return gitCommit.refreshCache();" id="removeCache" >{!$Label.CACHE_REFRESHED_NOW}</a>
+                            </div>
+                            <div style="width:100%">
+                                <input type="button" id="fullScreen" class="btn" value="{!JSENCODE($Label.Full_Screen)}" style="float:right;margin-right: 15px;" onclick="toggleGridFullScreen();"/>
+                            </div>
+                        </div>
+                        <apex:outputPanel rendered="{!showVlocity}">
+                            <a onclick="vlocityRetrieved = false; return gitCommit.getVlocityDepencencies();" id="vlocityMeta" style="text-align: right;">{!$Label.GET_VLOCITY_DEPENDENCIES}</a>
+                        </apex:outputPanel>
+                        <apex:outputPanel layout="none" >
+                            <div id="metadataGrid2" style="{!IF($User.UIThemeDisplayed == 'Theme4d','width:99%;','')}{!IF(selectedOperation.showGrid,'min-height:250px;','')}">
+                                <div class='mg2_tabs'>
+                                    <ul style="margin-left: 20px;">
+                                        <li>All Metadata</li>
+                                        <li>Selected Metadata</li>
+                                    </ul>
+
+                                    <div>
+                                        <div class="mg2_scaleFilterFrame" style="padding: 5px; display: none;">
+                                            <label class="mg2_mtFilter">Metadata Type Filter</label>&nbsp;
+                                            <apex:commandLink value="({!$Label.copado__refresh})"  onclick="return gitCommit.refreshMetadataTypes();" rerender="opDummy" id="removeMTCache"/>
+                                            <div class="mg2_scaleFilter" style="margin-bottom: 10px;" />
+                                        </div>
+                                    </div>
+                                    <div><!-- empty div, needed as content for the two tabs --></div>
+                                </div>
+                                <div class="mg2_jqxgrid" >
+                                    <center>
+                                        <img src="/img/loading.gif" />
+                                        <i>
+                                            <span id="retry-label">{!$Label.copado__loading}</span>
+                                        </i>
+                                    </center>
+                                </div>
+                            </div>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+                <!-- / METADATA GRID -->
+
+                <apex:outputPanel layout="block" id="DXArtifact_wrapper" styleClass="slds-scope">
+                    <section role="dialog" tabindex="-1" id="DXArtifact_modal" aria-labelledby="modal-heading-01" aria-describedby="modal-content-id-1" class="slds-modal slds-modal_large">
+                        <div class="slds-modal__container" style="width: 90% !important;">
+                            <header class="slds-modal__header">
+                                <button class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse" title="{!$Label.CLOSE}" onclick="DXArtifact_closeModal();return false;">
+                                    <svg class="slds-button__icon slds-button__icon_large" aria-hidden="true">
+                                        <use
+                                                xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/utility-sprite/svg/symbols.svg#close')}">
+                                        </use>
+                                    </svg>
+                                    <span class="slds-assistive-text">{!$Label.copado__close}</span>
+                                </button>
+                                <apex:outputPanel layout="block">
+                                    <h2 class="slds-text-heading_medium slds-hyphenate">
+                                        <apex:outputText value="Select metadata artifacts" />
+                                    </h2>
+                                </apex:outputPanel>
+                            </header>
+                            <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1" ><!--style="min-height: 84% !important;"-->
+
+                                <!-- Main dialgo content -->
+                                <br/>
+                                <div id="DXArtifact_grid" >
+                                    <center>
+                                        <img src="/img/loading.gif" />
+                                        <i><span id="retry-label">{!$Label.copado__loading}</span></i>
+                                    </center>
+                                </div>
+                            </div>
+                            <footer class="slds-modal__footer">
+                                <button class="slds-button slds-button_neutral" onclick="gitCommit.DXArtifact_submit(); return false;">Commit</button>
+                            </footer>
+                        </div>
+                    </section>
+
+                    <div class="slds-backdrop" id="DXArtifact_backdrop"></div>
+
+                    <script id="DXArtifact_template" type="text/html">
+                        <table class="slds-table slds-table_resizable-cols slds-table_bordered slds-table_striped slds-max-medium-table_stacked-horizontal">
+                            <thead>
+                            <tr class="slds-text-title_caps">
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Name">Name</div>
+                                </th>
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Artifact">Artifact</div>
+                                </th>
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Type">Type</div>
+                                </th>
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Last Modified By ID">Last Modified By ID</div>
+                                </th>
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Last Modified Date">Last Modified Date</div>
+                                </th>
+                                <th scope="col">
+                                    <div class="slds-truncate" title="Created By">Created By</div>
+                                </th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <# for(var itemIdx=0; itemIdx < items.length ; itemIdx++) { var item=items[itemIdx]; #>
+                            <tr>
+                                <td>
+                                    <div class="slds-truncate"><#== item.n #></div>
+                                </td>
+                                <td>
+                                    <div class="slds-truncate"><#= htmlSelectArtifact #></div>
+                                </td>
+                                <td>
+                                    <div class="slds-truncate"><#== item.t||'' #></div>
+                                </td>
+                                <td>
+                                    <div class="slds-truncate"><#== item.b||'' #></div>
+                                </td>
+                                <td>
+                                    <div class="slds-truncate"><#== item.d||'' #></div>
+                                </td>
+                                <td>
+                                    <div class="slds-truncate"><#== item.cb||'' #></div>
+                                </td>
+                            </tr>
+                            <# } /* for(var itemIdx=0; itemIdx < items.length ; itemIdx++) {*/ #>
+                            </tbody>
+                        </table>
+                    </script>
+                </apex:outputPanel>
+
+                <!-- ADVANCED SECTION -->
+                <apex:pageBlockSection columns="1" id="advancedSection">
+                    <apex:outputPanel id="advancedPanel" rendered="{!AND(showBaseBranch,$Permission.copado__Edit_User_Story_Commit_Base_Branch,selectedOperation.showAdvancedSection)}"> <!-- The rendered logic will change as we add more form elements in the advanced section -->
+                        <div class="slds-scope" style="width:96%">
+                            <div class="slds-section" style="margin-top:0px;">
+                                <h3 class="slds-section__title">
+                                    <button class="slds-button slds-section__title-action" type="button" onclick="toggleAdvance(this);return false;">
+                                        <svg class="slds-section__title-action-icon slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/utility-sprite/svg/symbols.svg#switch')}" />
+                                        </svg>
+                                        <span class="slds-truncate" title="{!$Label.copado__advanced}">{!$Label.copado__advanced}</span>
+                                    </button>
+                                </h3>
+                                <div class="slds-section__content">
+                                    <div class="slds-form slds-form_stacked">
+
+                                        <!-- BASE BRANCH TEXT FIELD -->
+                                        <apex:outputPanel id="baseBranchField" layout="none" rendered="{!AND(showBaseBranch,$Permission.copado__Edit_User_Story_Commit_Base_Branch)}" >
+                                            <div class="slds-form-element">
+                                                <label class="slds-form-element__label" for="input-baseBranch">{!$Label.copado__base_branch}</label>
+                                                <div class="slds-form-element__control">
+                                                    <apex:inputText styleclass="slds-input" id="input-baseBranch" value="{!baseBranch}" html-placeholder="{!$Label.copado__branch_name_enter}" />
+                                                </div>
+                                                <div class="slds-form-element__help">
+                                                    {!$Label.BASE_BRANCH_HELP}&nbsp;
+                                                    <apex:outputLink value="https://docs.copado.com/user-story/git-operations-overview" target="_blank">{!$Label.copado__more_information_here}</apex:outputLink>.
+                                                </div>
+                                            </div>
+                                        </apex:outputPanel>
+                                        <!-- / BASE BRANCH TEXT FIELD -->
+
+                                    </div>
+                                    <br/>
+                                </div>
+                            </div>
+                        </div>
+                    </apex:outputPanel>
+                </apex:pageBlockSection>
+                <!-- / ADVANCED SECTION -->
+            </apex:pageBlock>
+        </apex:form>
+
+        <script id="script_CheckAll" type="text/javascript" src="{!URLFOR($Resource.common) }"></script>
+        <script type="text/javascript">
+                var vlocityRetrieved = false;
+                $copado( document ).ready(function() {
+                    copadoStreamingService.ns = '{!JSENCODE(namespace)}';
+                    copadoStreamingService.init();
+                    statusManager.ns = '{!JSENCODE(namespace)}';
+                    statusManager.herokuServer = '{!JSENCODE(herokuServer)}';
+                    statusManager.urlParameters = '{!JSENCODE(urlParameters)}';
+                    statusManager.sessionId = __sfdcSessionId;
+                    statusManager.parentId = '{!JSENCODE(orgId)}';
+                    statusManager.waitTimeout = 10000;
+                    statusManager.initFunction = function(){ gitCommit.init(_config); };
+
+                    setTimeout(function(){
+                      statusManager.initialise();
+                    },2000);
+                    var body = document.getElementsByTagName('body')[0];
+                    body.addEventListener("beforeunload", function(){
+                        copadoStreamingService.unload();
+                     });
+
+                    window.addEventListener('copadoJobsManagerFinished', function (evt) {
+                        console.debug('copadoJobsManagerFinished evt.detail:', evt.detail);
+                        for(var i=0 ; i < evt.detail.length ; i++ ) {
+                            var jobFinished = evt.detail[i].isFinished;
+                            var jobSuccess = evt.detail[i].isSuccess;
+                            var jobMessage = evt.detail[i].message;
+                            var jobType = evt.detail[i].type;
+                            console.debug('Copado Notification:::',jobType,jobFinished,jobSuccess,jobMessage,vlocityRetrieved);
+                            if(jobFinished && jobSuccess && jobType === 'MetadataDependenciesJob' && vlocityRetrieved === false){
+                                vlocityRetrieved = true;
+                                processVlocityDependencies();
+                            }else if(jobFinished && jobFinished === true && !jobSuccess && jobType === 'MetadataDependenciesJob' && jobMessage && vlocityRetrieved === false){
+                                vlocityRetrieved = true;
+                                alert(jobMessage);
+                            }else if(jobFinished && jobFinished === true &&  !jobSuccess && jobType === 'MetadataDependenciesJob' && vlocityRetrieved === false){
+                                vlocityRetrieved = true;
+                                alert('There was a problem retrieving Vlocity dependencies.');
+                            }
+                        }
+                    }, false);
+
+                });
+
+                function checkStatusRedirect(){
+                    var url = "{!urlfor('/apex/' + jsencode(namespace) + 'dxoperation?id=' + gitbackup.Org__c + '&act=gsos')}";
+                    var win = window.open(url);
+                }
+
+                function toggleAdvance(elem) {
+                    var section = $copado(elem).closest('.slds-section');
+                    if(!section) return;
+
+                    if(section.hasClass('slds-is-open')){
+                        section.removeClass('slds-is-open');
+                    } else {
+                        section.addClass('slds-is-open');
+                    }
+                    return false;
+                }
+                var returnParameter = (function(param){
+                    var url_string = window.location.href;
+                    var url = new URL(url_string);
+                    var pValue = url.searchParams.get(param);
+                    return pValue;
+                });
+                var selectionTab = (function(){
+                    if(null != returnParameter('MetadataPreselectionId')){
+                        metadataGrid2.reloadSelections(1);
+                        metadataGrid2._reapplyFilters();
+                    }
+                });
+            </script>
+        <c:CheckFeaturesComponent />
+    </div>
+    <div class="errorDetails">{!errorDetails}</div>
+    </body>
+</apex:page>

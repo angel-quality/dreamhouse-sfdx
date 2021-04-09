@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObjectTranslation xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fields>
+        <label><!-- Link to Issue --></label>
+        <name>Link_to_Issue__c</name>
+    </fields>
+    <fields>
+        <help><!-- User Id who created the affected element --></help>
+        <label><!-- Created By --></label>
+        <name>QCloudsSaaS__Created_By__c</name>
+    </fields>
+    <fields>
+        <help><!-- Date on which the affected element was created --></help>
+        <label><!-- Created On --></label>
+        <name>QCloudsSaaS__Created_On__c</name>
+    </fields>
+    <fields>
+        <help><!-- Documentation URL --></help>
+        <label><!-- Documentation --></label>
+        <name>QCloudsSaaS__Documentation__c</name>
+    </fields>
+    <fields>
+        <help><!-- Name of the affected element --></help>
+        <label><!-- Element Name --></label>
+        <name>QCloudsSaaS__Element_Name__c</name>
+    </fields>
+    <fields>
+        <help><!-- Type of the affected element --></help>
+        <label><!-- Element Type --></label>
+        <name>QCloudsSaaS__Element_Type__c</name>
+    </fields>
+    <fields>
+        <label><!-- ID --></label>
+        <name>QCloudsSaaS__ID__c</name>
+    </fields>
+    <fields>
+        <help><!-- Impact Area --></help>
+        <label><!-- Impact Area --></label>
+        <name>QCloudsSaaS__Impact_Area__c</name>
+        <picklistValues>
+            <masterLabel>MANAGEABILITY</masterLabel>
+            <translation><!-- MANAGEABILITY --></translation>
+        </picklistValues>
+        <picklistValues>
+            <masterLabel>PERFORMANCE</masterLabel>
+            <translation><!-- PERFORMANCE --></translation>
+        </picklistValues>
+        <picklistValues>
+            <masterLabel>SCALABILITY</masterLabel>
+            <translation><!-- SCALABILITY --></translation>
+        </picklistValues>
+        <picklistValues>
+            <masterLabel>SECURITY</masterLabel>
+            <translation><!-- SECURITY --></translation>
+        </picklistValues>
+    </fields>
+    <fields>
+        <help><!-- Issue Type --></help>
+        <label><!-- Issue Type --></label>
+        <name>QCloudsSaaS__Issue__c</name>
+    </fields>
+    <fields>
+        <help><!-- Line number where the issue was detected --></help>
+        <label><!-- Line Number --></label>
+        <name>QCloudsSaaS__Line_Number__c</name>
+    </fields>
+    <fields>
+        <help><!-- Link from Quality Clouds API --></help>
+        <label><!-- Link --></label>
+        <name>QCloudsSaaS__Link__c</name>
+    </fields>
+    <fields>
+        <help><!-- Go to Element --></help>
+        <label><!-- Link to Element --></label>
+        <name>QCloudsSaaS__Link_to_Element__c</name>
+    </fields>
+    <fields>
+        <help><!-- Scan the issue is part of --></help>
+        <label><!-- Scan --></label>
+        <name>QCloudsSaaS__Scan__c</name>
+        <relationshipLabel><!-- QCIssues --></relationshipLabel>
+    </fields>
+    <fields>
+        <help><!-- Severity --></help>
+        <label><!-- Severity --></label>
+        <name>QCloudsSaaS__Severity__c</name>
+        <picklistValues>
+            <masterLabel>HIGH</masterLabel>
+            <translation><!-- HIGH --></translation>
+        </picklistValues>
+        <picklistValues>
+            <masterLabel>LOW</masterLabel>
+            <translation><!-- LOW --></translation>
+        </picklistValues>
+        <picklistValues>
+            <masterLabel>MEDIUM</masterLabel>
+            <translation><!-- MEDIUM --></translation>
+        </picklistValues>
+        <picklistValues>
+            <masterLabel>WARNING</masterLabel>
+            <translation><!-- WARNING --></translation>
+        </picklistValues>
+    </fields>
+    <fields>
+        <help><!-- User Id who last updated the affected element --></help>
+        <label><!-- Updated By --></label>
+        <name>QCloudsSaaS__Updated_By__c</name>
+    </fields>
+    <fields>
+        <help><!-- Date on which the affected element was last updated --></help>
+        <label><!-- Updated On --></label>
+        <name>QCloudsSaaS__Updated_On__c</name>
+    </fields>
+    <fields>
+        <label><!-- Write off --></label>
+        <name>QCloudsSaaS__Write_off__c</name>
+    </fields>
+    <fields>
+        <label><!-- User Story --></label>
+        <name>User_Story__c</name>
+        <relationshipLabel><!-- QCIssues --></relationshipLabel>
+    </fields>
+</CustomObjectTranslation>

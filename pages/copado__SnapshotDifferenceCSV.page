@@ -1,0 +1,12 @@
+<!--
+ - Created by dineshdk on 10/08/2018.
+ -->
+<apex:page standardController="copado__Snapshot_Difference__c" readOnly="true" extensions="copado.GenericMDAPIDiffCSV" contentType="text/csv#SnapshotDifferenceCSV.csv" id="SnapshotDifferenceCSV">
+<apex:outputText rendered="{!typeSnapDiffflag}"><apex:outputText rendered="{!jsonValflag}">{!$Label.copado__snapshotdiff_status},{!$Label.copado__snapshotdiff_metadata},{!$Label.copado__snapshotdiff_name}</apex:outputText>
+<apex:repeat value="{!jwSnapDiffs}" var="item">
+{!item.d},{!item.f},{!item.n}
+</apex:repeat>
+<apex:outputText rendered="{!!jsonValflag}">
+{!$Label.copado__snapshotdiff_message}
+</apex:outputText> </apex:outputText>
+</apex:page>

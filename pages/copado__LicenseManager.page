@@ -1,0 +1,290 @@
+<apex:page controller="copado.LicenseManagerController" id="thePage" showHeader="{!$User.UIThemeDisplayed=='Theme3'}" standardStylesheets="true" sidebar="false" applyHtmlTag="{!$User.UIThemeDisplayed=='Theme3'}" applyBodyTag="false" docType="html-5.0" lightningStylesheets="true">
+    <apex:slds rendered="{!$User.UIThemeDisplayed == 'Theme4d'}" />
+    <head>
+        <c:IncludeStaticsResourceComponent addJquery="true" addWizardcss="true" />
+        <apex:stylesheet value="{!IF($User.UIThemeDisplayed == 'Theme4d',URLFOR($Resource.copado__CopadoLightningCSS),'')}" />
+
+        <script>
+            function changeLookUpType(type) {
+                $copado("[id$=userInput_lktp]").val(type);
+            }
+
+            setTimeout(function() {
+                $copado('.fixedMsg').fadeOut('slow');
+            }, 50000);
+        </script>
+    </head>
+    <style>
+        .fixedMsg {
+            position: fixed;
+            top: 30px;
+            left: 30%;
+            z-index: 10000;
+        }
+        .removeLink {
+            pointer-events: none;
+            opacity: 0.6;
+            text-decoration: none;
+        }
+    </style>
+    <body>
+    <apex:form >
+        <c:ScreenLocker id="screenLocker" msg="{!$Label.copado__loading}" />
+    </apex:form>
+
+    <div class="copado-lightning-VF">
+        <apex:sectionHeader title="Copado" subtitle="{!$Label.copado__license_manager}" rendered="{!$User.UIThemeDisplayed != 'Theme4d'}" />
+        <apex:outputPanel layout="block" styleClass="slds-scope copado-lightning-container" rendered="{!$User.UIThemeDisplayed == 'Theme4d'}">
+            <div class="slds-page-header">
+                <apex:pageMessages id="pageMessage" />
+                <apex:pageMessage severity="INFO" strength="3" title="{!$Label.copado__license_manager_deactivated}" summary="{!$Label.copado__license_manager_inactive_descripton}" rendered="{!NOT(enableMultiLicenses)}" />
+                <div class="slds-grid">
+                    <div class="slds-col slds-has-flexi-truncate">
+                        <div class="slds-media">
+                            <div class="slds-media__figure">
+                              <span class="slds-icon_container" style="background-color: #fff" title="Description of icon when needed">
+                                <img src="{!URLFOR($Resource.Statics,'img/icons/logo-icon.png')}" class="slds-icon slds-page-header__icon" style="padding: 6px;" aria-hidden="true" />
+                            </span>
+                            </div>
+                            <div class="slds-media__body">
+                                <p class="slds-text-heading--label slds-line-height--reset">Copado</p>
+                                <h1 class="slds-page-header__title slds-truncate slds-align-middle" title="{!$Label.copado__license_manager}">{!$Label.copado__license_manager}</h1>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- / ACTION BUTTONS -->
+                </div>
+                <div class="slds-grid">
+                    <div class="slds-col slds-align-middle">
+                        <p class="slds-text-body_small"></p>
+                    </div>
+                </div>
+                <apex:outputPanel layout="block" style="background: white;" id="headerFields">
+                    <ul class="slds-grid slds-page-header__detail-row">
+                        <li class="slds-page-header__detail-block">
+                            <p class="slds-text-title slds-truncate slds-m-bottom_xx-small" title="{!$Label.copado__org_name}">{!$Label.copado__org_name}</p>
+                            <p class="slds-text-body_regular slds-truncate" title="">{!$Organization.Name}</p>
+                        </li>
+                        <li class="slds-page-header__detail-block">
+                            <p class="slds-text-title slds-truncate slds-m-bottom_xx-small" title="{!$Label.copado__org_id}">{!$Label.copado__org_id}</p>
+                            <p class="slds-text-body_regular slds-truncate" title="{!$Organization.Id}">{!$Organization.Id}</p>
+                        </li>
+                        <li class="slds-page-header__detail-block">
+                            <p class="slds-text-title slds-truncate slds-m-bottom_xx-small" title="{!$Label.copado__user_name}">{!$Label.copado__name}</p>
+                            <p class="slds-text-body_regular slds-truncate" title="">{!$User.FirstName} {!$User.LastName}</p>
+                        </li>
+                        <li class="slds-page-header__detail-block">
+                            <p class="slds-text-title slds-truncate slds-m-bottom_xx-small" title="{!$Label.copado__user_name}">{!$Label.copado__username}</p>
+                            <p class="slds-text-body_regular slds-truncate" title="">{!$User.Username}</p>
+                        </li>
+                        <li class="slds-page-header__detail-block">
+                            <p class="slds-text-title slds-truncate slds-m-bottom_xx-small" title="{!$Label.copado__user_id}">{!$Label.copado__user_id}</p>
+                            <p class="slds-text-body_regular slds-truncate" title="{!$User.Id}">{!$User.Id}</p>
+                        </li>
+                    </ul>
+                </apex:outputPanel>
+            </div>
+        </apex:outputPanel>
+
+        <apex:outputPanel layout="block" styleClass="copado-lightning-container copado-lightning-radius">
+
+
+            <apex:form id="theForm" styleClass="copado-lightning-container" style="padding-top:12px;">
+                <apex:pageMessage severity="INFO" strength="3" title="{!$Label.copado__license_manager_deactivated}" summary="{!$Label.copado__license_manager_inactive_descripton}" rendered="{!AND(NOT(enableMultiLicenses),$User.UIThemeDisplayed != 'Theme4d')}" />
+
+                <apex:actionStatus id="status" onstart="lockScreen();" onstop="unlockScreen();" />
+
+                <apex:outputPanel layout="block" styleClass="fixedMsg" rendered="{!$User.UIThemeDisplayed != 'Theme4d'}">
+                    <apex:pageMessages id="theMessages" />
+                </apex:outputPanel>
+
+                <apex:outputPanel rendered="{!enableMultiLicenses}">
+                    <apex:pageBlock id="pbMain" mode="edit">
+                        <apex:pageBlockSection columns="1">
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.copado__copado_licenses_used}" />
+                                <apex:outputText id="txtCopadoLicenses" value="{!copadoLicensesUsed}/{!copadoLicensesAvailable}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.copado__ccm_licenses_used}" />
+                                <apex:outputText id="txtCCMlicenses" value="{!CCMLicensesUsed}/{!CCMLicensesAvailable}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem > <!-- CAD AVAILABLE LICENSES -->
+                                <apex:outputLabel value="{!$Label.copado__cad_licenses_used}" />
+                                <apex:outputText id="txtCADlicenses" value="{!CADLicensesUsed}/{!CADLicensesAvailable}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.copado__cst_licenses_used}" />
+                                <apex:outputText id="txtCSTlicenses" value="{!CSTLicensesUsed}/{!CSTLicensesAvailable}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.copado__cch_licenses_used}" />
+                                <apex:outputText id="txtCCHlicenses" value="{!CCHLicensesUsed}/{!CCHLicensesAvailable}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.copado__branch_licenses}" />
+                                <apex:outputText id="txtCBMlicenses" value="{!CBMLicensesUsed}/{!cbmBranchesAvailable}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="{!$Label.copado__add_licenses_used}" />
+                                <apex:outputText id="txtADDlicenses" value="{!addLicensesUsed}/{!addLicensesAvailable}" />
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+
+                        <apex:pageBlockSection columns="1" title="{!$Label.copado__add_update_user}" collapsible="false">
+
+                            <apex:pageBlockSectionItem >    <!--USER LICENSE TYPE PICKLIST -->
+                                <apex:outputLabel >User</apex:outputLabel>
+                                <apex:outputPanel layout="block">
+                                    <!------ picklist will be disabled for users with insufficent permission on license assignment on license manager page--->
+                                    <apex:selectList title="User License Type" disabled="{!fieldDisableFlag}" label="User" size="1" multiselect="false" onchange="changeLookUpType(this.value);">
+                                        <apex:selectOptions value="{!licenseTypes}" />
+                                    </apex:selectList>&nbsp;&nbsp;   <!--Added spacing for user story  -->
+                                    <apex:inputField value="{!dummyUser.ManagerId}" id="userInput" rendered="{!!fieldDisableFlag}">
+                                        <apex:actionSupport event="onchange" action="{!retrieveCopadoLicenses}" reRender="pageMessage,theForm" status="status" />
+                                    </apex:inputField>
+                                </apex:outputPanel>
+                            </apex:pageBlockSectionItem>
+                            <!------ Following fields and button will be disabled for users with insufficent permission on license assignment on license manager page--->
+                            <apex:pageBlockSectionItem helpText="Copado = Copado Enterprise">
+                                <apex:outputLabel value="{!$Label.copado__assign_copado_license}" />
+                                <apex:inputCheckbox id="chkAssignCopado" value="{!assignCopado}" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="CCM = Copado Change Management" rendered="{!enableMultiLicenses}">
+                                <apex:outputLabel value="{!$Label.copado__assign_ccm_license}" />
+                                <apex:inputCheckbox id="chkAssignCCM" value="{!assignCCM}" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="CST = Copado Selenium Testing" rendered="{!enableMultiLicenses}">
+                                <apex:outputLabel value="{!$Label.copado__assign_cst_license}" />
+                                <apex:inputCheckbox id="chkAssignCST" value="{!assignCST}" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="CAD = Copado Agile Delivery" rendered="{!enableMultiLicenses}">
+                                <apex:outputLabel value="{!$Label.copado__assign_cad_license}" />
+                                <apex:inputCheckbox id="chkAssignCAD" value="{!assignCAD}" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="CCH = Copado Compliance Hub" rendered="{!enableMultiLicenses}">
+                                <apex:outputLabel value="{!$Label.copado__assign_cch_license}" />
+                                <apex:inputCheckbox id="chkAssignCCH" value="{!assignCCH}" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="ADD = Advance Data Deployment" rendered="{!enableMultiLicenses}">
+                                <apex:outputLabel value="{!$Label.copado__assign_add_license}" />
+                                <apex:inputCheckbox id="chkAssignCCH" value="{!assignADD}" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem helpText="{!$Label.copado__cbm_feature_based_license}" rendered="{!enableMultiLicenses}">
+                                <apex:outputLabel value="{!$Label.copado__cbm_license}" />
+                                <apex:inputCheckbox id="chkAssignCBM" rendered="false" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                            <apex:pageBlockSectionItem >
+                                <apex:outputLabel value="" />
+                                <apex:commandButton id="btnAddUser" value="{!$Label.copado__add_update_user}" action="{!addUser}" reRender="pageMessage,theForm" status="status" disabled="{!fieldDisableFlag}" />
+                            </apex:pageBlockSectionItem>
+                        </apex:pageBlockSection>
+                    </apex:pageBlock>
+                    <apex:pageBlock id="pbTables" title="{!$Label.copado__assigned_users}" mode="edit">
+                        <apex:pageBlockSection title="{!$Label.copado__copado_users}" columns="1" collapsible="false" id="pbsCopado">
+                            <apex:pageBlockTable value="{!copadoUsage}" var="row" id="tblCopadoUsage">
+                                <apex:column width="100">
+                                    <apex:facet name="header">{!$Label.copado__action_column_header}</apex:facet>
+                                    <apex:outputPanel >
+                                        <apex:commandLink id="lnkCopadoRemove" value="{!$Label.copado__remove}" action="{!row.removeAssignment}" reRender="theForm" status="status" styleClass="{!if(fieldDisableFlag,'removeLink','')}" />
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column >
+                                    <apex:facet name="header">{!$Label.copado__name}</apex:facet>
+                                    <apex:outputText id="txtCopadoUserName" value="{!row.license.SetupOwner.Name}" />
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+
+                        <apex:pageBlockSection title="{!$Label.copado__ccm_users}" columns="1" collapsible="false" id="pbsCCM">
+                            <apex:pageBlockTable value="{!ccmUsage}" var="row" id="tblCCMUsage">
+                                <apex:column width="100">
+                                    <apex:facet name="header">{!$Label.copado__action_column_header}</apex:facet>
+                                    <apex:outputPanel >
+                                        <apex:commandLink id="lnkCCMRemove" value="{!$Label.copado__remove}" action="{!row.removeAssignment}" reRender="theForm" status="status" styleClass="{!if(fieldDisableFlag,'removeLink','')}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column >
+                                    <apex:facet name="header">{!$Label.copado__name}</apex:facet>
+                                    <apex:outputText id="txtCCMUserName" value="{!row.license.SetupOwner.Name}" />
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+                        <!--CAD USERS************************************************************+ DIV-->
+                        <apex:pageBlockSection title="{!$Label.copado__cad_users}" columns="1" collapsible="false" id="pbsCAD">
+                            <apex:pageBlockTable value="{!cadUsage}" var="row" id="tblCADUsage">
+                                <apex:column width="100">
+                                    <apex:facet name="header">{!$Label.copado__action_column_header}</apex:facet>
+                                    <apex:outputPanel >
+                                        <apex:commandLink id="lnkCADRemove" value="{!$Label.copado__remove}" action="{!row.removeAssignment}" reRender="theForm" status="status" styleClass="{!if(fieldDisableFlag,'removeLink','')}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column >
+                                    <apex:facet name="header">{!$Label.copado__name}</apex:facet>
+                                    <apex:outputText id="txtCADUserName" value="{!row.license.SetupOwner.Name}" />
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+                        <!--CAD USERS************************************************************+ DIV-->
+
+                        <!--CCH USERS************************************************************+ DIV-->
+                        <apex:pageBlockSection title="{!$Label.copado__cch_users}" columns="1" collapsible="false" id="pbsCCH">
+                            <apex:pageBlockTable value="{!cchUsage}" var="row" id="tblCCHUsage">
+                                <apex:column width="100">
+                                    <apex:facet name="header">{!$Label.copado__action_column_header}</apex:facet>
+                                    <apex:outputPanel >
+                                        <apex:commandLink id="lnkCCHRemove" value="{!$Label.copado__remove}" action="{!row.removeAssignment}" reRender="theForm" status="status" styleClass="{!if(fieldDisableFlag,'removeLink','')}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column >
+                                    <apex:facet name="header">{!$Label.copado__name}</apex:facet>
+                                    <apex:outputText id="txtCCHUserName" value="{!row.license.SetupOwner.Name}" />
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+                        <!--CCH USERS************************************************************+ DIV-->
+
+                        <apex:pageBlockSection title="{!$Label.copado__cst_users}" columns="1" collapsible="false" id="pbsCST">
+                            <apex:pageBlockTable value="{!cstUsage}" var="row" id="tblCSTUsage">
+                                <apex:column width="100">
+                                    <apex:facet name="header">{!$Label.copado__action_column_header}</apex:facet>
+                                    <apex:outputPanel >
+                                        <apex:commandLink id="lnkCSTRemove" value="{!$Label.copado__remove}" action="{!row.removeAssignment}" reRender="theForm" status="status" styleClass="{!if(fieldDisableFlag,'removeLink','')}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column >
+                                    <apex:facet name="header">{!$Label.copado__name}</apex:facet>
+                                    <apex:outputText id="txtCSTUserName" value="{!row.license.SetupOwner.Name}" />
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+
+
+                        <!--ADD USERS************************************************************+ DIV-->
+                        <apex:pageBlockSection title="{!$Label.copado__add_users}" columns="1" collapsible="false" id="pbsADD">
+                            <apex:pageBlockTable value="{!addUsage}" var="row" id="tblADDUsage">
+                                <apex:column width="100">
+                                    <apex:facet name="header">{!$Label.copado__action_column_header}</apex:facet>
+                                    <apex:outputPanel >
+                                        <apex:commandLink id="lnkADDRemove" value="{!$Label.copado__remove}" action="{!row.removeAssignment}" reRender="theForm" status="status" styleClass="{!if(fieldDisableFlag,'removeLink','')}"/>
+                                    </apex:outputPanel>
+                                </apex:column>
+                                <apex:column >
+                                    <apex:facet name="header">{!$Label.copado__name}</apex:facet>
+                                    <apex:outputText id="txtCCHUserName" value="{!row.license.SetupOwner.Name}" />
+                                </apex:column>
+                            </apex:pageBlockTable>
+                        </apex:pageBlockSection>
+                        <!--ADD USERS************************************************************+ DIV-->
+                    </apex:pageBlock>
+                </apex:outputPanel>
+            </apex:form>
+            <!--- This component render will be disabled for users with insufficent permission on license assignment on license manager page because this component will show additional setup error message on top of page--->
+            <apex:outputPanel rendered="{!!fieldDisableFlag}">
+                <c:CheckFeaturesComponent />
+            </apex:outputPanel>
+
+        </apex:outputPanel>
+    </div>
+    </body>
+</apex:page>

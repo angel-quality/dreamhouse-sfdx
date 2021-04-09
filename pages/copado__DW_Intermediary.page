@@ -1,0 +1,108 @@
+<apex:page standardController="copado__Deployment__c" extensions="copado.DW_IntermediaryExtension" id="DW_Intermediary" lightningStylesheets="true" sideBar="false" docType="html-5.0" title="Deployment Intermediary">
+
+    <apex:slds />
+
+    <c:IncludeStaticsResourceComponent addJQuery="true" addUIjs="true" />
+    <apex:includeScript value="{!$Resource.copado__DW_javascript}" />
+    <apex:stylesheet value="{!$Resource.copado__DW_custom_css}" />
+    <c:GAnalytics />
+
+    <script>
+        var globalSldsResourcePath = 'wescustom{!URLFOR($Asset.SLDS)}';
+        $copado(document).ready(function(){
+            lockScreen();
+            window.history.replaceState("","",window.location.href)
+            checkForLastStep();
+        });
+        ga('send', 'pageview', {
+            'page': '/DeploymentWizardIntermediary',
+            'title': 'Deployment Wizard Intermediary'
+        });
+    </script>
+
+    <apex:form >
+        <c:CopadoSpinner />
+        <apex:actionFunction name="checkForLastStep" action="{!checkLastStepForWizard}" onComplete="unlockScreen();" reRender="noNeedRender" />
+        <apex:outputPanel id="typeSelectionDiv" layout="block" rendered="{!ISBLANK(copado__Deployment__c.Id)}" styleClass="co-dw-container">
+            <apex:outputPanel id="intermediaryDiv" layout="block" styleClass="co-dw-container">
+                <div class="slds-grid slds-gutters">
+                    <div class="slds-col slds-size_1-of-6"></div>
+                    <div class="slds-col slds-size_4-of-6">
+                        <h1>{!$Label.New_Deployment}</h1>
+                        <p class="subtitle">{!$Label.Type_of_Deployment}</p>
+
+                        <apex:outputPanel layout="none" styleClass="error-panel" rendered="{!PageMessageSize != 0}">
+                            <div id="divToast" class="slds-notify_container slds-is-relative">
+                                <apex:repeat value="{!pageMessagesMap}" var="severity">
+                                    <div class="slds-notify slds-notify_toast slds-theme_{!severity}" role="status">
+                                        <span class="slds-assistive-text"></span>
+                                        <span class="slds-icon_container slds-icon-utility-success slds-m-right_small slds-no-flex slds-align-top">
+                                            <span class="slds-icon_container slds-icon__svg--default {!severity}ToastIcon"></span>
+                                        </span>
+                                        <div class="slds-notify__content">
+                                            <apex:repeat value="{!pageMessagesMap[severity]}" var="messages">
+                                                <h2 class="slds-text-heading_small ">{!messages}</h2>
+                                            </apex:repeat>
+                                        </div>
+                                        <div class="slds-notify__close">
+                                            <button type="button" class="slds-button slds-button_icon slds-button_icon-inverse" title="{!$Label.CLOSE}" onclick="$copado('[id=divToast]').addClass('slds-hide');">
+                                                <span class="slds-icon_container slds-icon__svg--default closeToastIcon"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </apex:repeat>
+                            </div>
+                        </apex:outputPanel>
+
+                        <fieldset class="slds-form-element">
+                            <div class="slds-form-element__control">
+                                <div class="slds-form-element">
+                                    <label class="slds-form-element__label" for="performanceType">{!$Label.copado__select_deployment_type}</label>
+                                    <div class="visual-options">
+                                        <apex:repeat value="{!deploymentTypeList}" var="dType">
+                                            <!-- The title is hard coded because it will be patched and we will remove it when we enable big metadata functionality for dsw. -->
+                                            <div class="slds-visual-picker slds-visual-picker_medium" title="{!IF(AND(bigMetadataEnabled, dType.deploymentTypeLabel == $Label.copado__metadata_deployment),'This option is not available when the Type Filtered Metadata grid is enabled for the Org. Select the Advanced Multi-Step option to deploy metadata.','')}">
+                                                <apex:outputPanel layout="none" rendered="{!AND(bigMetadataEnabled, dType.deploymentTypeLabel == $Label.copado__metadata_deployment)}">
+                                                    <input type="radio" value="{!dType.deploymentType}" name="performanceType" disabled="disabled"/>
+                                                </apex:outputPanel>
+                                                <apex:outputPanel layout="none" rendered="{!OR(!bigMetadataEnabled, AND(bigMetadataEnabled, dType.deploymentTypeLabel != $Label.copado__metadata_deployment))}">
+                                                    <input type="radio" id="{!dType.deploymentType}" value="{!dType.deploymentType}" name="performanceType" onclick="dw.changeValue(this,'{!$Component.RadioButtonValue}');"/>
+                                                </apex:outputPanel>
+                                                <label for="{!dType.deploymentType}">
+                                                    <span class="slds-visual-picker__figure slds-visual-picker__icon">
+                                                        <span class="slds-is-selected">
+                                                            <div class="slds-media slds-media_center slds-p-left_medium">
+                                                                <span>{!dType.deploymentTypeLabel}</span>
+                                                            </div>
+                                                            <div class="slds-p-right_medium slds-p-left_medium slds-text-title slds-text-align_left">{!dType.deploymentTypeDetail}</div>
+                                                        </span>
+                                                        <span class="slds-is-not-selected">
+                                                            <div class="slds-media slds-media_center slds-p-left_medium">
+                                                                <span>{!dType.deploymentTypeLabel}</span>
+                                                            </div>
+                                                            <div class="slds-p-right_medium slds-p-left_medium slds-text-title slds-text-align_left">{!dType.deploymentTypeDetail}</div>
+                                                        </span>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </apex:repeat>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <apex:inputHidden value="{!selectedDeploymentType}" id="RadioButtonValue" />
+
+                        <div class="buttons slds-m-top--xx-large">
+                            <apex:commandButton styleClass="slds-button slds-button_outline-brand" onClick="lockScreen();" value="{!$Label.copado__cancel}" action="{!goToDeploymentTab}" onComplete="dw.applyRenderSVG();unlockScreen();" reRender="intermediaryDiv"/>
+                            <apex:commandButton styleClass="slds-button slds-button_brand" onClick="lockScreen();" value="{!$Label.copado__start_deployment_setup}" action="{!startDeploymentSetup}" onComplete="dw.applyRenderSVG();unlockScreen();" reRender="intermediaryDiv" />
+                        </div>
+
+                    </div>
+                    <div class="slds-col slds-size_1-of-6"></div>
+                </div>
+            </apex:outputPanel>
+        </apex:outputPanel>
+
+    </apex:form>
+</apex:page>

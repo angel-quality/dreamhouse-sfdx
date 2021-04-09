@@ -1,0 +1,857 @@
+<apex:page id="PipelineManagerDialog" standardController="copado__Deployment_Flow__c" extensions="copado.PipelineManagerExtension,copado.Settings" lightningStylesheets="true" sideBar="false" docType="html-5.0">
+    <apex:slds />
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1" />
+    <script>
+        $copado(document).ready(function() {
+            lockScreen();
+        });
+        function showApprovalModal(envId) {
+            prepareEnvApprovals(envId);
+            setTimeout(function() {
+                $copado('#approvalBackdrop').addClass('slds-backdrop--open');
+                $copado('#approvalModal').addClass('slds-fade-in-open');
+                unlockScreen();
+            }, 800);
+        };
+        function closeApprovalModal() {
+            lockScreen();
+            setTimeout(function(){
+                $copado('#approvalModal').removeClass('slds-fade-in-open');
+                $copado('#approvalBackdrop').removeClass('slds-backdrop--open');
+                unlockScreen();
+            },500);
+            return false;
+        }
+
+        function showDeploymentModal(envId) {
+            console.log('envId:', envId);
+            queryDeploymentsPerEnvironment(envId);
+            setTimeout(function() {
+                $copado('#deploymentBackdrop').addClass('slds-backdrop--open');
+                $copado('#deploymentModal').addClass('slds-fade-in-open');
+                unlockScreen();
+            }, 800);
+        };
+        function closeDeploymentModal() {
+            lockScreen();
+            setTimeout(function(){
+                $copado('#deploymentModal').removeClass('slds-fade-in-open');
+                $copado('#deploymentBackdrop').removeClass('slds-backdrop--open');
+                unlockScreen();
+            },500);
+            return false;
+        }
+
+      function showModal() {
+            $copado('#backdrop').addClass('slds-backdrop--open');
+            $copado('#modal').addClass('slds-fade-in-open');
+        };
+
+        function closeModal() {
+            lockScreen();
+            setTimeout(function() {
+                $copado('#modal').removeClass('slds-fade-in-open');
+                $copado('#backdrop').removeClass('slds-backdrop--open');
+             unlockScreen();
+            },500);
+            return false;
+        }
+
+        function openPromotionListModal() {
+            var message = $copado('.slds-notify__content').html();
+            setTimeout(function() {
+                if(message == "" || message == undefined) {
+                    $copado('#promoListBackdrop').addClass('slds-backdrop--open');
+                    $copado('#promotionListModal').addClass('slds-fade-in-open');
+                }
+                unlockScreen();
+                }, 500);
+        }
+
+        function closePromotionListModal() {
+            $copado('[Id$="depPros"]').removeClass('WarningColor');
+            lockScreen();
+            setTimeout(function() {
+                $copado('#promotionListModal').removeClass('slds-fade-in-open');
+                $copado('#promoListBackdrop').removeClass('slds-backdrop--open');
+             unlockScreen();
+            },500);
+            return false;
+        }
+
+        function switchTab(tabType){
+            if(tabType == 'SELENIUM') switchToSelenium();
+            if(tabType == 'COMPLIANCE') switchToCompliance();
+            if(tabType == 'USERSTORY') switchToUserStory();
+        }
+
+        function toggleCurrentButton(currentButton){
+            $copado('.activeButton').removeClass('activeButton');
+            currentButton.classList.add('activeButton');
+        }
+
+        function clearSearchFilter(){
+            $copado('.dataTables_filter').find('input[type="search"]').val('').keyup();
+        }
+
+        function removeDatatableFilterBox(){
+            $copado('#userStoriesTable_filter').remove();
+            $copado('#seleniumsTable_filter').remove();
+            $copado('#compliancesTable_filter').remove();
+        }
+
+        function renderTable(){
+            removeDatatableFilterBox();
+            var tabDatatable = $copado('[Id$="userStoriesTable"]');
+            tabDatatable.dataTable({
+                paging:false
+            });
+            tabDatatable.css("border-top","0");
+
+            var filterObj = $copado('#userStoriesTable_filter');
+            reParentFilter(filterObj);
+        }
+        function renderTable4Selenium(){
+            removeDatatableFilterBox();
+            var tabDatatable = $copado('[Id$="seleniumsTable"]');
+            tabDatatable.dataTable({
+                paging:false
+            });
+            tabDatatable.css("border-top","0");
+
+            var filterObj = $copado('#seleniumsTable_filter');
+            reParentFilter(filterObj);
+        }
+        function renderTable4Compliance(){
+            removeDatatableFilterBox();
+            var tabDatatable = $copado('[Id$="compliancesTable"]');
+            tabDatatable.dataTable({
+                paging:false
+            });
+            tabDatatable.css("border-top","0");
+
+            var filterObj = $copado('#compliancesTable_filter');
+            reParentFilter(filterObj);
+        }
+        function reParentFilter(fobj){
+            fobj.appendTo(fobj.parents().find('#tabfilter'));
+            fobj.css('float','right');
+        }
+
+        function copadoNavigateToUrl(id, url, target) {
+            // lightning/any other way to navigate
+            if( (typeof sforce != 'undefined') && sforce && (!!sforce.one) ) {
+                if(target != '_blank'){
+                    sforce.one.navigateToSObject(id, 'detail');
+                }else{
+                    window.open('/lightning/r/' + id + '/view');
+                }
+            } else {
+                if(target != undefined){
+                    window.open(url, target);
+                }else{
+                    window.open(url, '_blank');
+                }
+            }
+        }
+
+        function selectUnselectAll(tableName, elemid) {
+            var table = $copado('#'+tableName);
+            $copado('td input:checkbox', table).prop('checked', $copado('#'+elemid).prop('checked'));
+        }
+        function changeSelectAll(tableName, elemid) {
+            var table = $copado('#'+tableName);
+            var lst = $copado('td input:checkbox', table);
+            var count = 0;
+            lst.each(function() {
+                if($copado(this).prop("checked") == true) count++ ;
+            });
+            if(lst.length != count) {
+                $copado('#'+elemid).prop("checked", false);
+            } else {
+                $copado('#'+elemid).prop("checked", true);
+            }
+            promotionInfo();
+        }
+
+        CalculateWidth = function(elem, e) {
+            var childObj = $copado(elem).children().first();
+            var parObj = childObj.parents().first();
+            var count = 1;
+
+            while(parObj.prop("tagName") != 'TH') {
+                parObj = parObj.parents().first();
+                count++;
+            }
+
+            var mouseStart=e.clientX;
+            mStart = mouseStart;
+            oWidth = parObj.outerWidth();
+        };
+
+        SetNewWidth = function(elem, e) {
+            var childObj = $copado(elem).children().first();
+            var parObj = childObj.parents().first();
+            var count = 1;
+
+            while(parObj.prop("tagName") != 'TH') {
+                parObj = parObj.parents().first();
+                count++;
+            }
+
+            var mouseStart = mStart;
+            var oldWidth = oWidth
+
+            if(e.clientX > 0){
+                var newWidth = e.clientX- parseFloat(mouseStart)+parseFloat(oldWidth);
+                parObj.width(newWidth);
+            }
+        }
+
+    </script>
+
+    <style type="text/css">
+          .slds-scope .slds-modal__container {
+              padding: 0;
+          }
+          .table.dataTable thead tr {
+              background-color: "#e0e1e2";
+          }
+          .activeButton {
+            border-bottom: none !important;
+            border-top: 4px solid #3593c6 !important;
+          }
+          .tabButton {
+	          width:34%;
+	          min-width: 250px;
+	      }
+
+    </style>
+
+    <apex:form >
+        <!-- deployment modal functions -->
+        <apex:actionFunction name="openConflictPage" reRender="copadoErrorPanel,copadoErrorPanelForDialog" action="{!openResolveConflictsPage}" onComplete="closeDeploymentModal();">
+            <apex:param name="promId" value="" />
+        </apex:actionFunction>
+        <!-- Promotion / Back Promotion Panel -->
+        <apex:actionFunction name="promotionInfo" action="{!promotionInfo}" reRender="copadoErrorPanelForDialog" />
+        <apex:actionFunction name="switchToSelenium" action="{!showSeleniumResultsTab}" onComplete="renderTable4Selenium();unlockScreen();" reRender="fieldSets,GeneralActionButtons" />
+        <apex:actionFunction name="switchToCompliance" action="{!showComplianceResultsTab}" onComplete="renderTable4Compliance();unlockScreen();" reRender="fieldSets,GeneralActionButtons" />
+        <apex:actionFunction name="switchToUserStory" action="{!showUserStoriesTab}" onComplete="renderTable();unlockScreen();" reRender="fieldSets,GeneralActionButtons" />
+        <apex:actionFunction name="prepareEnvApprovals" reRender="approvalRenderPanel" onComplete="rerenderApprovalDatatable()">
+            <apex:param name="approvalEnvId" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="queryDeploymentsPerEnvironment" reRender="deploymentRenderPanel" onComplete="rerenderDeploymentDatatable()">
+            <apex:param name="deploymentEnvId" value="" />
+        </apex:actionFunction>
+        <apex:actionFunction name="renderPromotionPoller" reRender="rebasePromotionPoller" />
+        <apex:actionFunction name="resetPromotionList" action="{!resetPromotionList}" oncomplete="renderTable();closePromotionListModal();changeSelectAll('userStoriesTable', 'selectAll');unlockScreen();" reRender="fieldSets,pins" />
+        <apex:actionFunction name="deployPromotionList" action="{!deployPromotionList}" reRender="createdPromotionListPanel,rebasePromotionPoller,copadoErrorPanelForDialog" oncomplete="unlockScreen();" />
+        <apex:outputPanel id="operationModal">
+            <section role="dialog" tabindex="-1" id="modal" aria-labelledby="modal-heading-01" aria-describedby="modal-content-id-1" class="slds-modal slds-modal_large" style="height: 100%">
+                <div class="slds-modal__container" style="width: 100% !important;">
+                    <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1" style="min-height: 85%; height: 100%; overflow-x:scroll;">
+                        <apex:outputPanel id="copadoErrorPanelForDialog" layout="none">
+                            <c:CopadoErrorPanel pageMessagesMap="{!pageMessagesMap}" />
+                        </apex:outputPanel>
+                        <div class="slds-grid slds-wrap slds-clearfix">
+                            <div id="modalHeader" class="slds-col slds-size_1-of-2">
+                                <button class="slds-button" onclick="closeToastMessage(); closeModal(); return false;">
+                                    <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Asset.SLDS, '/assets/icons/utility-sprite/svg/symbols.svg#back')}"></use>
+                                    </svg>
+                                    {!$Label.copado__pipeline_back_to_pipeline}
+                                </button>
+                            </div>
+                            <apex:outputPanel id="GeneralActionButtons" styleClass="slds-col slds-size_1-of-2" style="text-align:right;">
+                                <apex:commandButton value="{!$Label.copado__pipeline_validate_selections}" styleClass="slds-button slds-button_neutral slds-m-horizontal_small" id="validateSelections" action="{!createPromotionforValidation}" reRender="maodalHeader, copadoErrorPanelForDialog, createdPromotionListPanel" onClick="lockScreen();" oncomplete="openPromotionListModal();renderPromotionPoller();" disabled="{!NOT(showUserStories)}" />
+                                <apex:commandButton value="{!IF(newOverlay.pathType == 'merge', $Label.copado__pipeline_promote, $Label.copado__pipeline_back_promote)}" styleClass="slds-button slds-button_neutral slds-m-horizontal_small" id="createPromotion" action="{!createPromotion}" reRender="maodalHeader, copadoErrorPanelForDialog,createdPromotionListButtons, createdPromotionListPanel" onClick="lockScreen();" onComplete="openPromotionListModal();" disabled="{!NOT(showUserStories)}" />
+                                <apex:commandButton value="{!IF(newOverlay.pathType == 'merge', $Label.copado__pipeline_promote_and_deploy, $Label.copado__pipeline_back_promote_and_deploy)}" styleClass="slds-button slds-button_brand slds-m-horizontal_small" id="createPromotionAndDeploy" action="{!createPromotionListAndDeploy}" reRender="maodalHeader, copadoErrorPanelForDialog, createdPromotionListPanel,rebasePromotionPoller" onClick="lockScreen();" onComplete="openPromotionListModal(); unlockScreen();" disabled="{!NOT(showUserStories)}" />
+                            </apex:outputPanel>
+
+                        </div>
+                        <div class="slds-grid slds-wrap slds-clearfix">
+                            <div id="headtitle" class="slds-col slds-align-middle slds-size_1-of-3">
+                                <h2 class="slds-text-heading_medium slds-hyphenate">
+                                    {!$Label.User_Stories}
+                                </h2>
+                            </div>
+                            <div class="slds-col slds-align-middle slds-size_1-of-3"></div>
+                            <div id="headpicklist" class="slds-col slds-size_1-of-3" style="text-align:right;">
+                                <div class="slds-form-element">
+                                    <div class="slds-form-element__control" style="float:right;border-bottom: 1px solid gray; width: 30%;min-width:150px;"> <!--min-width is because list cannot be smaller than that-->
+                                        <label class="slds-form-element__label" for="testlevelPicklist">{!$Label.Pipeline_Test_Level}</label>
+                                        <apex:selectList value="{!testLevel}" id="testlevelPicklist" size="1" disabled="{!newOverlay.toEnvRunAllTests}"
+                                                         multiselect="false" styleClass="slds-select" style="border:none;" title="{!IF(newOverlay.toEnvRunAllTests,$Label.copado__pipeline_dest_env_enforces_runalltestsinorg,$Label.copado__pipeline_select_deployment_testlevel)}">
+                                            <apex:selectOption itemValue="NoTestRun" itemLabel="NoTestRun" />
+                                            <apex:selectOption itemValue="RunSpecifiedTests" itemLabel="RunSpecifiedTests" />
+                                            <apex:selectOption itemValue="RunLocalTests" itemLabel="RunLocalTests" />
+                                            <apex:selectOption itemValue="RunAllTestsInOrg" itemLabel="RunAllTestsInOrg" />
+                                        </apex:selectList>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <apex:outputPanel style="width: 100%; float: left; margin-bottom:10px;margin-top:5px;" layout="block" id="tabHeader">
+                            <apex:outputPanel layout="none" rendered="{!newOverlay.pathType == 'merge'}">
+                                <span class="slds-text-heading_medium">
+                                    {!newOverlay.fromEnvName}
+                                    <svg class="slds-button__icon slds-button__icon_right" aria-hidden="true">
+                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Asset.SLDS, '/assets/icons/utility-sprite/svg/symbols.svg#forward')}"></use>
+                                    </svg>
+                                </span>
+                                <span class="slds-text-heading_medium">
+                                    {!newOverlay.toEnvName}
+                                </span>
+                            </apex:outputPanel>
+                            <apex:outputPanel layout="none" rendered="{!newOverlay.pathType != 'merge'}">
+                                <span class="slds-text-heading_medium">
+                                    {!newOverlay.toEnvName}
+                                    <svg class="slds-button__icon slds-button__icon_right" aria-hidden="true">
+                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Asset.SLDS, '/assets/icons/utility-sprite/svg/symbols.svg#back')}"></use>
+                                    </svg>
+                                </span>
+                                <span class="slds-text-heading_medium">
+                                        {!newOverlay.fromEnvName}
+                                    </span>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                        <apex:outputPanel id="pins" layout="block" styleClass="slds-grid" style="width: 100%; margin-top: 15px;">
+                            <div class="slds-button-group slds-size_1-of-2" style="margin-bottom:20px;" role="group">
+                                <button name="templateButton" class="slds-button slds-button_neutral tabButton activeButton" style="border-bottom: 2px solid #3593c6; border-radius: .25rem 0 0 0;" onclick="lockScreen();toggleCurrentButton(this);switchTab('USERSTORY');" type="button">{!IF(newOverlay.pathType == 'merge',$Label.USER_STORIES_AHEAD,$Label.USER_STORIES_BEHIND)} ({!newOverlay.userStories.size})</button>
+                                <button name="templateButton" class="slds-button slds-button_neutral tabButton" style="border-bottom: 2px solid #3593c6;" onclick="lockScreen();toggleCurrentButton(this);switchTab('SELENIUM');" type="button">{!$Label.STR} (<span id="strsize">{!STGSize}</span>)
+                                </button>
+                                <button name="templateButton" class="slds-button slds-button_neutral tabButton" style="border-bottom: 2px solid #3593c6; border-radius: 0 .25rem 0 0;" onclick="lockScreen();toggleCurrentButton(this);switchTab('COMPLIANCE');" type="button">{!$Label.CSR} (<span id="csrsize">{!CRSize}</span>)
+                                </button>
+                            </div>
+                            <div id="tabfilter" class="slds-size_2-of-2" style="width: 50%; margin-bottom:20px; border-bottom: 2px solid #3593c6;"></div>
+                        </apex:outputPanel>
+                        <apex:outputPanel layout="block" id="fieldSets">
+                            <!-- USER STORIES FIELDSET -->
+                            <apex:outputPanel id="userStories" layout="none" rendered="{!showUserStories}">
+                                <fieldset class="slds-theme--default slds-container--fluid">
+                                    <table class="slds-table slds-table_resizable-cols slds-table_bordered slds-table_striped sortableTable" role="grid" id="userStoriesTable">
+                                        <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <th scope="col" class="slds-text-align_right slds-is-resizable" style="width: 3.25rem;">
+                                                <div class="slds-th__action slds-th__action_form">
+                                                        <span class="slds-checkbox">
+                                                        <input type="checkbox" name="options" id="selectAll" checked="true" onchange="selectUnselectAll('userStoriesTable',this.id);" />
+                                                        <label class="slds-checkbox__label" for="selectAll">
+                                                            <span class="slds-checkbox_faux"></span>
+                                                        <span class="slds-form-element__label slds-assistive-text">{!$Label.SELECT_ALL}</span>
+                                                        </label>
+                                                        </span>
+                                                </div>
+                                            </th>
+                                            <apex:repeat value="{!$ObjectType.copado__User_Story__c.FieldSets.copado__CBM_Fields}" var="fld">
+                                                <th class="slds-is-sortable slds-is-resizable slds-text-title_caps" scope="col">
+                                                    <a href="javascript:void(0);" class="slds-th__action slds-text-link_reset" tabindex="0">
+                                                        <span class="slds-assistive-text">{!$Label.Sort}</span>
+                                                        <span class="slds-truncate" title="Name">{!fld.Label}</span>
+                                                        <div class="slds-icon_container"></div>
+                                                        <span class="slds-assistive-text" aria-live="assertive" aria-atomic="true"></span>
+                                                    </a>
+                                                    <div class="slds-resizable">
+                                                        <label for="cell-resize-handle-1" class="slds-assistive-text">{!fld.Label} column width</label>
+                                                        <input type="range" min="20" max="1000" class="slds-resizable__input slds-assistive-text" id="cell-resize-handle-1" tabindex="0" />
+                                                        <span class="slds-resizable__handle" draggable="true" onmousedown="CalculateWidth(this, event)" ondrag="SetNewWidth(this, event)" ondragend="return false;">
+                                                            <span class="slds-resizable__divider"></span>
+                                                        </span>
+                                                    </div>
+                                                </th>
+                                            </apex:repeat>
+                                        </tr>
+                                        </thead>
+                                        <tbody id="mainTableBody">
+                                        <apex:repeat value="{!newOverlay.userStories}" var="us" id="userStoryRepeat">
+                                            <tr class="slds-hint-parent">
+                                                <td role="gridcell" class="slds-text-align_right" style="width: 3.25rem;">
+                                                    <apex:inputCheckbox id="checkbox-2" value="{!us.isSelected}" onClick="changeSelectAll('userStoriesTable', 'selectAll');" />
+                                                </td>
+                                                <apex:repeat value="{!$ObjectType.copado__User_Story__c.FieldSets.copado__CBM_Fields}" var="fld">
+                                                    <td role="gridcell" style="max-width:200px;overflow: hidden !important;text-overflow: ellipsis;white-space: nowrap !important;">
+                                                        <div class="slds-truncate" title="{!us.userStory[fld]}">
+                                                            <apex:outputPanel layout="none" rendered="{!OR(fld.Type == 'reference', AND(fld.Type != 'reference', fld.Label == $ObjectType.copado__User_Story__c.fields.copado__Last_Validation_Deployment_Status__c.Label), fld.Type == 'boolean')}">
+                                                                <apex:outputField value="{!us.userStory[fld.fieldPath]}" />
+                                                            </apex:outputPanel>
+                                                            <apex:outputPanel layout="none" rendered="{!AND(fld.Type != 'reference', fld.Label != $ObjectType.copado__User_Story__c.fields.copado__Last_Validation_Deployment_Status__c.Label,fld.Label != $ObjectType.copado__User_Story__c.fields.Name.Label, fld.Type != 'boolean')}">
+                                                                {!us.userStory[fld.fieldPath]}
+                                                            </apex:outputPanel>
+                                                            <apex:outputPanel layout="none" rendered="{!AND(fld.Type != 'reference', fld.Label == $ObjectType.copado__User_Story__c.fields.Name.Label)}">
+                                                                <a href="#" onclick="copadoNavigateToUrl('{!us.userStory.Id}','{!URLFOR($Action.copado__User_Story__c.View,us.userStory.Id)}', '_blank'); return false;"> {!us.userStory[fld.fieldPath]} </a>
+                                                            </apex:outputPanel>
+                                                        </div>
+                                                    </td>
+                                                </apex:repeat>
+                                            </tr>
+                                        </apex:repeat>
+                                        </tbody>
+                                    </table>
+                                </fieldset>
+                            </apex:outputPanel>
+                            <!-- END OF USER STORIES FIELDSET -->
+                            <!-- COMPLIANCE RESULT FIELDSET -->
+                            <apex:outputPanel id="complianceResults" layout="none" rendered="{!showComplianceResults}">
+                                <fieldset class="slds-theme--default slds-container--fluid">
+                                    <table class="slds-table slds-table_resizable-cols slds-table_bordered slds-table_striped sortableTable" role="grid" id="compliancesTable">
+                                        <thead>
+                                        <apex:repeat value="{!$ObjectType.copado__Compliance_Scan_Result__c.FieldSets.copado__Compliance_Result_Tab}" var="fld">
+                                            <th class="slds-is-sortable slds-is-resizable slds-text-title_caps" scope="col">
+                                                <a href="javascript:void(0);" class="slds-th__action slds-text-link_reset" tabindex="0">
+                                                    <span class="slds-assistive-text">{!$Label.Sort}</span>
+                                                    <span class="slds-truncate" title="{!fld.Label}">{!fld.Label}</span>
+                                                    <div class="slds-icon_container"></div>
+                                                    <span class="slds-assistive-text" aria-live="assertive" aria-atomic="true"></span>
+                                                </a>
+                                                <div class="slds-resizable">
+                                                    <label for="cell-resize-handle-1" class="slds-assistive-text">{!$Label.Message_Column_Width}</label>
+                                                    <input type="range" min="20" max="1000" class="slds-resizable__input slds-assistive-text" id="cell-resize-handle-1" tabindex="0" />
+                                                    <span class="slds-resizable__handle" draggable="true" onmousedown="CalculateWidth(this, event)" ondrag="SetNewWidth(this, event)" ondragend="return false;">
+                                                        <span class="slds-resizable__divider"></span>
+                                                    </span>
+                                                </div>
+                                            </th>
+                                        </apex:repeat>
+                                        </thead>
+                                        <tbody>
+                                        <apex:repeat value="{!ComplianceScanResults}" var="cr">
+                                            <tr class="slds-hint-parent">
+                                                <apex:repeat value="{!$ObjectType.copado__Compliance_Scan_Result__c.FieldSets.copado__Compliance_Result_Tab}" var="fld">
+                                                    <td role="gridcell" class="">
+                                                        <div class="slds-truncate" title="{!cr[fld]}">
+                                                            <apex:outputPanel layout="none" rendered="{!OR(fld.Type == 'reference', fld.Type == 'boolean')}">
+                                                                <apex:outputField value="{!cr[fld.fieldPath]}" />
+                                                            </apex:outputPanel>
+                                                            <apex:outputPanel layout="none" rendered="{!AND(fld.Type != 'reference', fld.Type != 'boolean')}">
+                                                                {!cr[fld.fieldPath]}
+                                                            </apex:outputPanel>
+                                                        </div>
+                                                    </td>
+                                                </apex:repeat>
+                                            </tr>
+                                        </apex:repeat>
+                                        </tbody>
+                                    </table>
+                                </fieldset>
+                            </apex:outputPanel>
+                            <!-- END OF COMPLIANCE RESULT FIELDSET -->
+                            <!-- SELENIUM RESULT FIELDSET -->
+                            <apex:outputPanel id="seleniumResults" layout="none" rendered="{!showSeleniumResults}">
+                                <fieldset class="slds-theme--default slds-container--fluid">
+                                    <table class="slds-table slds-table_resizable-cols slds-table_bordered slds-table_striped sortableTable" role="grid" id="seleniumsTable">
+                                        <thead>
+                                        <tr class="slds-line-height_reset">
+                                            <apex:repeat value="{!$ObjectType.copado__Selenium_Test_Group__c.FieldSets.copado__Selenium_Results_Tab}" var="fld">
+                                                <th class="slds-is-sortable slds-is-resizable slds-text-title_caps" scope="col" style="width: 21%">
+                                                    <a href="javascript:void(0);" class="slds-th__action slds-text-link_reset" tabindex="0">
+                                                        <span class="slds-assistive-text">{!$Label.Sort} </span>
+                                                        <span class="slds-truncate" title="{!fld.Label}">{!fld.Label}</span>
+                                                    </a>
+                                                    <div class="slds-resizable">
+                                                        <label for="cell-resize-handle-1" class="slds-assistive-text">{!$Label.Message_Column_Width}</label>
+                                                        <input type="range" min="20" max="1000" class="slds-resizable__input slds-assistive-text" id="cell-resize-handle-1" tabindex="0" />
+                                                        <span class="slds-resizable__handle" draggable="true" onmousedown="CalculateWidth(this, event)" ondrag="SetNewWidth(this, event)" ondragend="return false;">
+                                                            <span class="slds-resizable__divider"></span>
+                                                            </span>
+                                                    </div>
+                                                </th>
+                                            </apex:repeat>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <apex:repeat value="{!SeleniumTestGroups}" var="sr">
+                                            <tr class="slds-hint-parent">
+                                                <apex:repeat value="{!$ObjectType.copado__Selenium_Test_Group__c.FieldSets.copado__Selenium_Results_Tab}" var="fld">
+                                                    <td role="gridcell" class="">
+                                                        <div class="slds-truncate" title="{!sr[fld]}">
+                                                            <apex:outputPanel layout="none" rendered="{!OR(fld.Type == 'reference', AND(fld.Type != 'reference', fld.Label == $ObjectType.copado__Selenium_Test_Group__c.fields.copado__Status_Icon__c.Label), fld.Type == 'boolean')}">
+                                                                <apex:outputField value="{!sr[fld.fieldPath]}" />
+                                                            </apex:outputPanel>
+                                                            <apex:outputPanel layout="none" rendered="{!AND(fld.Type != 'reference', fld.Label != $ObjectType.copado__Selenium_Test_Group__c.fields.copado__Status_Icon__c.Label, fld.Type != 'boolean')}">
+                                                                {!sr[fld.fieldPath]}
+                                                            </apex:outputPanel>
+                                                        </div>
+                                                    </td>
+                                                </apex:repeat>
+
+                                            </tr>
+                                        </apex:repeat>
+                                        </tbody>
+                                    </table>
+                                </fieldset>
+                                <!-- END OF SELENIUM RESULT FIELDSET -->
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+
+                    </div>
+                </div>
+            </section>
+            <div class="slds-backdrop" id="backdrop"></div>
+        </apex:outputPanel>
+
+        <!-- Approvals modal -->
+        <div id="approvalsPanel">
+            <section role="dialog" tabindex="-1" id="approvalModal" aria-labelledby="modal-heading-01" aria-describedby="modal-content-id-1" class="slds-modal slds-modal_large" style="height: 100%">
+                <div class="slds-modal__container" style="width: 100% !important;">
+                    <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1" style="min-height: 85%; height: 100%; overflow-x:scroll;">
+                        <apex:outputPanel id="approvalPanelHeader" layout="block">
+                            <div id="approvalHeading" style="float: left;margin-bottom:40px">
+                                <button class="slds-button" onclick="closeApprovalModal(); return false;">
+                                    <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Asset.SLDS, '/assets/icons/utility-sprite/svg/symbols.svg#back')}"></use>
+                                    </svg>
+                                    {!$Label.copado__pipeline_back_to_pipeline}
+                                </button>
+                                <h2 class="slds-text-heading_medium slds-hyphenate">
+                                    {!$Label.copado__pipeline_pending_approvals}
+                                </h2>
+                            </div>
+                            <apex:outputPanel id="approvalRenderPanel" layout="block" style="margin-top:20px">
+                                <table id="dt4Approval" class="compact row-border">
+                                    <thead>
+                                    <tr>
+                                        <apex:repeat value="{!$ObjectType.copado__User_Story__c.FieldSets.copado__Pipeline_Manager_Pending_Approvals}" var="usf">
+                                            <td style="background-color: #fafaf9">
+                                                <h2 id="approvalHT" class="slds-text-heading_medium slds-hyphenate" style="padding-left:20px">
+                                                    <apex:outputText value="{!usf.Label}" />
+                                                </h2>
+                                            </td>
+                                        </apex:repeat>
+                                        <td style="background-color: #fafaf9">
+                                            <h2 id="approvalHT" class="slds-text-heading_medium slds-hyphenate" style="padding-left:20px">
+                                                {!$Label.Action}
+                                            </h2>
+                                        </td>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <apex:repeat value="{!PendingApprovalsByEnvironment}" var="approval">
+                                        <tr>
+                                            <apex:repeat value="{!$ObjectType.copado__User_Story__c.FieldSets.copado__Pipeline_Manager_Pending_Approvals}" var="usf">
+                                                <td style="padding-left:28px">
+                                                    <apex:outputField value="{!approval[usf]}" />
+                                                </td>
+                                            </apex:repeat>
+                                            <td style="padding-left:28px">
+                                                <button type="button" onclick="copadoNavigateToUrl('{!approval.Id}','{!URLFOR($Action.User_Story__c.View,approval.Id)}', '_blank');" class="slds-button slds-button_neutral" style="border: none;">
+                                                    <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Asset.SLDS, '/assets/icons/utility-sprite/svg/symbols.svg#preview')}"></use>
+                                                    </svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </apex:repeat>
+                                    </tbody>
+                                </table>
+                                <script>
+                                    function rerenderApprovalDatatable() {
+                                        $copado('#dt4Approval').DataTable();
+                                    }
+
+                                </script>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </div>
+                </div>
+            </section>
+            <div class="slds-backdrop" id="approvalBackdrop"></div>
+        </div>
+        <!-- END OF Approvals modal -->
+
+        <!-- Deployment modal -->
+        <div id="deploymentPanel">
+            <section role="dialog" tabindex="-1" id="deploymentModal" aria-labelledby="modal-heading-01" aria-describedby="modal-content-id-1" class="slds-modal slds-modal_large" style="height: 100%">
+                <div class="slds-modal__container" style="width: 100% !important;">
+                    <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1" style="min-height: 85%; height: 100%; overflow-x:scroll;">
+                        <apex:outputPanel id="deploymentPanelHeader" layout="block">
+                            <div id="deploymentHeading" style="float: left;margin-bottom:40px">
+                                <button class="slds-button" onclick="closeDeploymentModal(); return false;">
+                                    <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Asset.SLDS, '/assets/icons/utility-sprite/svg/symbols.svg#back')}"></use>
+                                    </svg>
+                                    {!$Label.copado__pipeline_back_to_pipeline}
+                                </button>
+                                <h2 class="slds-text-heading_medium slds-hyphenate">
+                                    {!$Label.copado__deployment_activity}
+                                </h2>
+                            </div>
+                            <apex:outputPanel id="deploymentRenderPanel" layout="block" style="margin-top:20px">
+                                <table id="dt4Deployment" class="compact row-border">
+                                    <thead>
+                                    <tr>
+                                        <apex:repeat value="{!$ObjectType.copado__Deployment__c.FieldSets.copado__Pipeline_Deployment_Modal}" var="usf">
+                                            <td style="background-color: #fafaf9">
+                                                <h2 id="deploymentHT" class="slds-text-title_caps slds-hyphenate" style="padding-left:20px">
+                                                    <apex:outputText value="{!usf.Label}" />
+                                                </h2>
+                                            </td>
+                                        </apex:repeat>
+                                        <td style="background-color: #fafaf9">
+                                            <h2 id="deploymentHT" class="slds-text-title_caps slds-hyphenate" style="padding-left:20px">
+                                                {!$Label.Action}
+                                            </h2>
+                                        </td>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <apex:repeat value="{!LatestDeploymentsByEnvironment}" var="deployment">
+                                        <tr>
+                                            <apex:repeat value="{!$ObjectType.copado__Deployment__c.FieldSets.copado__Pipeline_Deployment_Modal}" var="dep">
+                                                <td style="padding-left:28px">
+                                                    <apex:outputPanel layout="none" rendered="{!dep.Label == $ObjectType.copado__Deployment__c.fields.Name.Label}">
+                                                        <a href="#" onclick="copadoNavigateToUrl('{!deployment.Id}','{!URLFOR($Action.copado__Deployment__c.View,deployment.Id)}', '_blank'); return false;"> {!deployment[dep.fieldPath]} </a>
+                                                    </apex:outputPanel>
+                                                    <apex:outputPanel layout="none" rendered="{!dep.Label != $ObjectType.copado__Deployment__c.fields.Name.Label}">
+                                                        <apex:outputField value="{!deployment[dep]}" rendered="{!dep.Label != $ObjectType.copado__Deployment__c.fields.copado__Flag_Status__c.Label}"/>
+                                                    </apex:outputPanel>
+                                                    <apex:image url="{!deployment[dep]}" rendered="{!dep.Label == $ObjectType.copado__Deployment__c.fields.copado__Flag_Status__c.Label}" height="20" width="20"/>
+                                                </td>
+                                            </apex:repeat>
+                                            <td style="padding-left:28px">
+                                                <apex:outputPanel layout="none" rendered="{!deployment.Promotion__r.copado__Status__c == 'Merge Conflict'}">
+                                                    <a href="javascript:void(0)" target="_blank" class="slds-button" onclick="openConflictPage('{!deployment.Promotion__c}');return false;" style="border: none;">{!$Label.MERGE_CONFLICT_REVIEW}
+                                                    </a>
+                                                </apex:outputPanel>
+                                            </td>
+
+                                        </tr>
+                                    </apex:repeat>
+                                    </tbody>
+                                </table>
+                                <script>
+                                    function rerenderDeploymentDatatable() {
+                                        $copado('#dt4Deployment').DataTable({"order": []});
+                                    }
+
+                                </script>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                    </div>
+                </div>
+            </section>
+            <div class="slds-backdrop" id="deploymentBackdrop"></div>
+        </div>
+        <!-- END OF Deployments modal -->
+
+        <!-- START OF Dependencies Panel -->
+        <apex:outputPanel layout="block" id="dependencyUSComponent" style="display: none;" styleClass="slds-scope">
+            <div class="slds-modal_large">
+                <section role="dialog" tabindex="-1" aria-labelledby="modal-heading-01" aria-modal="true"
+                         aria-describedby="modal-content-id-1" class="slds-modal slds-fade-in-open" style="height:100%">
+                    <div class="slds-modal__container">
+                        <header class="slds-modal__header">
+                            <button class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse"
+                                    title="Close" onclick="closeUSDep(); return false;">
+                                <svg class="slds-button__icon slds-button__icon_large" aria-hidden="true">
+                                    <use xmlns:xlink="http://www.w3.org/1999/xlink"
+                                         xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/utility-sprite/svg/symbols.svg#close')}"></use>
+                                </svg>
+                                <span class="slds-assistive-text">{!$Label.CLOSE}</span>
+                            </button>
+                            <h2 id="modal-heading-01"
+                                class="slds-text-heading_medium slds-hyphenate">{!$label.USDependency_USDependenciesTitle}</h2>
+                        </header>
+                        <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1">
+                            <apex:outputPanel rendered="{!currentProId4Dependency!=null}">
+                                <c:UserStoryDependency usMap="{!dependenciesMap}" proId="{!currentProId4Dependency}" />
+                            </apex:outputPanel>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="slds-backdrop slds-backdrop_open" id="USbackdrop"></div>
+        </apex:outputPanel>
+        <!-- END OF Dependencies Panel -->
+
+        <!-- START Promotion List modal -->
+        <apex:outputPanel layout="block">
+            <section role="dialog" tabindex="-1" id="promotionListModal" class="slds-modal slds-modal_large" style="height: 100%">
+                <div class="slds-modal__container" style="width: 100% !important;">
+                    <div class="slds-modal__content slds-p-around_medium" id="modal-content-id-1" style="min-height: 70%; height: 100%; overflow-x:scroll;">
+                        <div style="float:left; margin-bottom: 10px;" id="head">
+                            <button class="slds-button" onclick="lockScreen();resetPromotionList(); return false;">
+                                <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                    <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Asset.SLDS, '/assets/icons/utility-sprite/svg/symbols.svg#back')}"></use>
+                                </svg>{!$Label.copado__close}</button>
+                            <apex:outputPanel id="rebasePromotionsHeader" layout="block">
+                                <h2 id="logsHeaderText" class="slds-text-heading_medium slds-hyphenate">
+                                    <apex:outputText value="{!$Label.copado__pipeline_created_promotions}" />
+                                </h2>
+                            </apex:outputPanel>
+                        </div>
+                        <apex:outputPanel id="createdPromotionListButtons" layout="block" style="float: right">
+                            <apex:outputPanel rendered="{!promotionListOnly}">
+                                <button class="slds-button slds-button_neutral" onclick="lockScreen();resetPromotionList(); return false;">{!$Label.copado__prepare_another_promotion}</button>
+                                <button class="slds-button slds-button_brand" id="depPros" onclick="lockScreen();deployPromotionList(); return false;">{!$Label.copado__deploy_promotions}</button>
+                            </apex:outputPanel>
+                        </apex:outputPanel>
+                        <apex:actionPoller action="{!checkPromotionsStatuses}" id="rebasePromotionPoller" enabled="{!enabledPromotionBackPromotionPoller}" interval="10" reRender="createdPromotionListPanel,rebasePromotionPoller, createdPromotionListButtons" />
+                        <apex:outputPanel layout="block" id="createdPromotionListPanel">
+                            <table id="promolist" class="slds-table slds-table_resizable-cols slds-table_striped">
+                                <thead>
+                                <tr>
+                                    <th class="slds-text-align_right slds-is-resizable" scope="col" style="width: 3.25rem;">
+                                        <div class="slds-th__action slds-th__action_form">
+                                            <span class="slds-checkbox">
+                                            <input type="checkbox" name="options" id="selectUnselectPromo" value="checkbox-2" checked="true" onchange="selectUnselectAll('promolist', this.id);" />
+                                            <label class="slds-checkbox__label" for="selectUnselectPromo">
+                                                <span class="slds-checkbox_faux"></span>
+                                                <span class="slds-form-element__label slds-assistive-text">{!$Label.SELECT_ALL}</span>
+                                            </label>
+                                        </span>
+                                        </div>
+                                    </th>
+                                    <apex:repeat value="{!$ObjectType.copado__Promotion__c.FieldSets.copado__Pipeline_Manager}" var="pf">
+                                        <th class="slds-is-sortable slds-is-resizable slds-text-title_caps" scope="col">
+                                            <apex:outputLabel value="{!pf.Label}" />
+                                        </th>
+                                    </apex:repeat>
+                                    <th class="slds-is-sortable slds-is-resizable slds-text-title_caps" scope="col">
+                                        <b>{!$Label.copado__pipeline_test_level}</b>
+                                    </th>
+                                    <th class="slds-is-sortable slds-is-resizable slds-text-title_caps" scope="col">
+                                        <b>{!$Label.copado__deployment_status}</b>
+                                    </th>
+                                    <th class="slds-is-sortable slds-is-resizable slds-text-title_caps" scope="col">
+                                        <b>{!$Label.copado__pipeline_dependency_status}</b>
+                                    </th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <apex:repeat var="prom" value="{!promotionListWrapper}">
+                                    <tr>
+                                        <td style="text-align: center">
+                                            <apex:inputCheckbox value="{!prom.isSelected}" onClick="changeSelectAll('promolist', 'selectUnselectPromo');" />
+                                        </td>
+                                        <apex:repeat value="{!$ObjectType.copado__Promotion__c.FieldSets.copado__Pipeline_Manager}" var="pf">
+                                            <td class="slds-is-resizable">
+                                                <apex:outputPanel layout="none" rendered="{!OR(pf.Type == 'reference', pf.Type == 'boolean')}">
+                                                    <apex:outputField value="{!prom.promotion[pf.fieldPath]}" />
+                                                </apex:outputPanel>
+                                                <apex:outputPanel layout="none" rendered="{!AND(pf.Type != 'reference', pf.Label != $ObjectType.copado__Promotion__c.fields.Name.Label, pf.Type != 'boolean')}">
+                                                    {!prom.promotion[pf.fieldPath]}
+                                                </apex:outputPanel>
+                                                <apex:outputPanel layout="none" rendered="{!AND(pf.Type != 'reference', pf.Label == $ObjectType.copado__Promotion__c.fields.Name.Label)}">
+                                                    <a href="#" onclick="copadoNavigateToUrl('{!prom.promotion.Id}','{!URLFOR($Action.copado__Promotion__c.View,prom.promotion.Id)}', '_blank'); return false;"> {!prom.promotion[pf.fieldPath]}</a>
+                                                </apex:outputPanel>
+                                            </td>
+                                        </apex:repeat>
+                                        <td class="slds-is-resizable">
+                                            <apex:outputText value="{!prom.promotionTestLevel}" />
+                                        </td>
+                                        <td style="text-align: center;" class="slds-is-resizable">
+                                            <apex:outputPanel layout="none" rendered="{!prom.promotion.copado__Status__c == 'Scheduled'}">
+                                                <div id="statusImg" class="slds-icon_container">
+                                                    <svg class="slds-icon slds-icon_small slds-icon-text-default" aria-hidden="true">
+                                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/utility-sprite/svg/symbols.svg#clock')}">
+                                                        </use>
+                                                    </svg>
+                                                </div>
+                                                <script type="text/javascript">
+                                                    $copado(function(){
+                                                        var item = $copado('[Id$=statusImg]');
+                                                        item.html("");
+                                                        var imageURL = "{!URLFOR($Resource.copado__SLDS,'/assets/icons/utility-sprite/svg/symbols.svg#clock')}";
+                                                        var SVG = $copado('<svg/>', {
+                                                            class: 'slds-icon slds-icon_small slds-icon-text-default',
+                                                        });
+                                                        var SVGUse = $copado('<use/>');
+                                                        SVGUse.attr('xlink:href', imageURL);
+                                                        item.prepend(SVG.append(SVGUse));
+                                                        item.html(item.html());
+                                                    });
+
+                                                </script>
+                                            </apex:outputPanel>
+                                            <apex:outputPanel layout="none" rendered="{!prom.promotion.copado__Status__c == 'In Progress'}">
+                                                <img id="statusImg" style="width: 20px;" src="{!URLFOR($Resource.SLDS,'assets/images/spinners/slds_spinner_brand.gif')}" />
+                                            </apex:outputPanel>
+                                            <apex:outputPanel layout="none" rendered="{!prom.promotion.copado__Status__c == 'Completed' || prom.promotion.copado__Status__c == 'Validated'}">
+                                                <div id="statusImgApproval" class="slds-icon_container">
+                                                    <svg class="slds-icon slds-icon_small slds-icon-text-default" aria-hidden="true">
+                                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/action-sprite/svg/symbols.svg#approval')}">
+                                                        </use>
+                                                    </svg>
+                                                </div>
+                                                <script type="text/javascript">
+                                                    $copado(function(){
+                                                        var item = $copado('[Id$=statusImgApproval]');
+                                                        item.html("");
+                                                        var imageURL = "{!URLFOR($Resource.copado__SLDS,'/assets/icons/action-sprite/svg/symbols.svg#approval')}";
+                                                        var SVG = $copado('<svg/>', {
+                                                            class: 'slds-icon slds-icon_small slds-icon-text-default',
+                                                        });
+                                                        var SVGUse = $copado('<use/>');
+                                                        SVGUse.attr('xlink:href', imageURL);
+                                                        item.prepend(SVG.append(SVGUse));
+                                                        item.html(item.html());
+                                                    });
+
+                                                </script>
+                                            </apex:outputPanel>
+                                            <apex:outputPanel layout="none" rendered="{!prom.promotion.copado__Status__c == 'Completed with errors' || prom.promotion.copado__Status__c == 'Validated with errors'}">
+                                                <div id="statusImgClose" class="slds-icon_container">
+                                                    <svg class="slds-icon slds-icon_x-small slds-icon-text-default" aria-hidden="true">
+                                                        <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/action-sprite/svg/symbols.svg#close')}">
+                                                        </use>
+                                                    </svg>
+                                                </div>
+                                                <script type="text/javascript">
+                                                    $copado(function(){
+                                                        var item = $copado('[Id$=statusImgClose]');
+                                                        item.html("");
+                                                        var imageURL = "{!URLFOR($Resource.copado__SLDS,'/assets/icons/action-sprite/svg/symbols.svg#close')}";
+                                                        var SVG = $copado('<svg/>', {
+                                                            class: 'slds-icon slds-icon_small slds-icon-text-default',
+                                                        });
+                                                        var SVGUse = $copado('<use/>');
+                                                        SVGUse.attr('xlink:href', imageURL);
+                                                        item.prepend(SVG.append(SVGUse));
+                                                        item.html(item.html());
+                                                    });
+
+                                                </script>
+                                            </apex:outputPanel>
+                                        </td>
+                                        <td class="slds-is-resizable">
+                                            <apex:outputPanel rendered="{!prom.hasDependency}">
+                                                <script>
+                                                    $copado('[Id$="depPros"]').addClass('WarningColor');
+
+                                                </script>
+                                                <center>
+                                                    <a id="warningLink" style="padding-top: 4px;" html-proId="{!prom.promotion.Id}" title="{!$Label.USDependency_IconTitle}" onclick="openUSDep(this);" styleClass="icon-blinker">
+                                                        <svg class="slds-icon slds-icon-text-warning slds-icon_small" aria-hidden="true">
+                                                            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/utility-sprite/svg/symbols.svg#warning')}"></use>
+                                                        </svg>
+                                                    </a>
+                                                </center>
+                                            </apex:outputPanel>
+                                            <apex:outputPanel rendered="{!!prom.hasDependency}">
+                                                <center>{!$Label.copado__n_a}</center>
+                                            </apex:outputPanel>
+                                        </td>
+                                    </tr>
+                                </apex:repeat>
+                                </tbody>
+                            </table>
+                            <script>
+                                $copado(function renderPromoListDatatable(){
+                                    $copado('#promolist').DataTable({
+                                        "pageLength": 100,
+                                        "lengthChange": false,
+                                        "ordering": false,
+                                        "searching":false
+                                    } );
+                                });
+
+                            </script>
+                        </apex:outputPanel>
+                    </div>
+                </div>
+            </section>
+            <div class="slds-backdrop" id="promoListBackdrop"></div>
+        </apex:outputPanel>
+    </apex:form>
+</apex:page>

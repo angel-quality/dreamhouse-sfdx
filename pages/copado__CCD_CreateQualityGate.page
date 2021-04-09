@@ -1,0 +1,163 @@
+<apex:page id="CCD_CreateQualityGate" standardController="copado__Quality_Gate__c" extensions="copado.CCD_CreateQualityGateExtension,copado.Settings,copado.JsRemotingController" lightningStylesheets="true" standardStylesheets="false" applyBodyTag="true" showHeader="true" docType="html-5.0">
+
+    <apex:slds />
+    <c:IncludeConnectionJsComponent />
+    
+    <style>
+    .slds-form-element {
+        padding: .5em .5em;
+    }
+    </style>
+    <script>
+
+        var saveTask = function(){
+            var type = document.querySelector('[id$="qgType"]').value;
+            var data;
+            if(type === 'URL Callout'){
+                data = urlCallout.save();
+                console.log('type==> ',type);
+                if(data){
+                    var newPrevRes = [];
+                    var parsed;
+                    try{
+                        //UCU - if the selected type is apex then the parse crashes, so placed try cache block to solve it
+                        parsed = JSON.parse(data);
+                    } catch(err){
+                        parsed = {};
+                    }
+
+                    if(parsed.prevRes){
+                        for(var pr=0;pr<parsed.prevRes.length;pr++){
+                            if(parsed.prevRes[pr].s){
+                                newPrevRes.push(parsed.prevRes[pr]);
+                            }
+                        }
+                        parsed.prevRes = newPrevRes;
+                        data = JSON.stringify(parsed);
+                    }
+                    lockScreen();
+                    saveAct(data);
+
+                    return false;
+                }else{
+                    return false;
+                }
+            } else{
+                lockScreen();
+                saveAct(data);
+            }
+        }
+    </script>
+    <div class="slds-scope">
+        <div class="slds-page-header">
+            <div class="slds-grid">
+                <div class="slds-col slds-has-flexi-truncate">
+                    <div class="slds-media">
+                        <div class="slds-media__figure">
+                      <span class="slds-icon_container slds-icon-custom-custom67">
+                        <svg class="slds-icon" aria-hidden="true">
+                          <use xmlns:xlink="http://www.w3.org/1999/xlink"
+                               xlink:href="{!URLFOR($Resource.SLDS,'/assets/icons/custom-sprite/svg/symbols.svg#custom67')}"></use>
+                        </svg>
+                      </span>
+                        </div>
+                        <div class="slds-media__body">
+                            <p class="slds-text-heading--label slds-line-height--reset">{!$ObjectType.Quality_Gate__c.Label}</p>
+                            <h1 class="slds-page-header__title slds-truncate slds-align-middle"
+                                title="{!$Label.NEW} {!$ObjectType.Quality_Gate__c.Label}">
+                                {!$Label.NEW} {!$ObjectType.Quality_Gate__c.Label}
+                            </h1>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <apex:form id="groupItemForm">
+            <apex:actionFunction name="rendergroupItemForm" reRender="groupItemForm" onComplete="unlockScreen();"/>
+            <apex:pageBlock >
+                <apex:PageMessages id="messages"/>
+                <c:CopadoSpinner />
+                <apex:pageBlockSection columns="2">
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.Name.Label}"/>
+                        <apex:outputPanel layout="block" styleClass="requiredInput">
+                            <div class="requiredBlock"/>
+                            <apex:inputField value="{!thisQualityGate.Name}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Type__c.Label}"/>
+                        <apex:outputPanel layout="block" styleClass="requiredInput">
+                            <div class="requiredBlock"/>
+                            <apex:selectList id="qgType" size="1" multiSelect="false" value="{!thisQualityGate.copado__Type__c}"
+                                             onChange="lockScreen();rendergroupItemForm();" required="true">
+                                <apex:selectOptions value="{!typeOptions}"/><!--toggleAdditionalFields(this.value);-->
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem >
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Metadata_Group__c.Label}"/>
+                        <apex:outputPanel layout="block" styleClass="requiredInput">
+                            <div class="requiredBlock"/>
+                            <apex:inputField value="{!thisQualityGate.copado__Metadata_Group__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!thisQualityGate.copado__Type__c == SELENIUM_TEST}">
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Selenium_Test_Group__c.Label}"/>
+                        <apex:outputPanel layout="block">
+                            <div class="requiredBlock"/>
+                            <apex:inputField value="{!thisQualityGate.copado__Selenium_Test_Group__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!isManualType}">
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Manual_Task_Owner__c.Label}"/>
+                        <apex:outputPanel layout="block">
+                            <div class="requiredBlock"/>
+                            <apex:inputField value="{!thisQualityGate.copado__Manual_Task_Owner__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!thisQualityGate.copado__Type__c == COMPLIANCE}">
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Compliance_Rule_Group__c.Label}"/>
+                        <apex:outputPanel layout="block">
+                            <div class="requiredBlock"/>
+                            <apex:inputField value="{!thisQualityGate.copado__Compliance_Rule_Group__c}"/>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!OR(thisQualityGate.copado__Type__c == APEX_TEST,thisQualityGate.copado__Type__c == null)}">
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Test_Level__c.Label}"/>
+                        <apex:outputPanel layout="block">
+                            <div class="requiredBlock"/>
+                            <apex:selectList size="1" multiSelect="false" value="{!thisQualityGate.copado__Test_Level__c}">
+                                <apex:selectOptions value="{!testLevelOptions}"/>
+                            </apex:selectList>
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!thisQualityGate.copado__Type__c == STATIC_ANALYSIS}">
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Static_Code_Analysis_Settings__c.Label}"/>
+                        <apex:inputField value="{!thisQualityGate.copado__Static_Code_Analysis_Settings__c}"/>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!thisQualityGate.copado__Type__c == STATIC_ANALYSIS}">
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem rendered="{!thisQualityGate.copado__Type__c == STATIC_ANALYSIS}">
+                        <apex:outputLabel value="{!$ObjectType.copado__Quality_Gate__c.Fields.copado__Score_Threshold__c.Label}"/>
+                        <apex:inputField value="{!thisQualityGate.copado__Score_Threshold__c}"/>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <apex:pageBlockSection columns="1">
+                    <apex:pageBlockSectionItem rendered="{!thisQualityGate.copado__Type__c == 'URL Callout'}">
+                        <c:URLCalloutComponent isEdit="true" />
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+
+                <div class="slds-form-element slds-align_absolute-center">
+                    <apex:commandButton value="{!$Label.copado__cancel}" action="{!cancel}" styleClass="slds-button slds-button_neutral" />
+                    <input type="button"  value="{!$Label.Save}" class="btn slds-button slds-button_brand"
+                                        onClick="saveTask();"/>
+                    <apex:actionFunction name="saveAct" action="{!save}" onComplete="unlockScreen();" reRender="messages">
+                        <apex:param name="dataJSON" value=""/>
+                    </apex:actionFunction>
+                </div>
+            </apex:pageBlock>
+        </apex:form>
+    </div>
+</apex:page>
