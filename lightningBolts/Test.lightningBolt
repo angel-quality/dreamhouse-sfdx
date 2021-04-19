@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningBolt xmlns="http://soap.sforce.com/2006/04/metadata">
+    <category>FinancialServices</category>
+    <lightningBoltFeatures>
+        <order>1</order>
+        <title>test</title>
+    </lightningBoltFeatures>
+    <lightningBoltImages>
+        <image>Captura_de_pantalla_20210326_a_las</image>
+        <order>1</order>
+    </lightningBoltImages>
+    <lightningBoltItems>
+        <name>DreamHouse</name>
+        <type>CustomApplication</type>
+    </lightningBoltItems>
+    <masterLabel>Test</masterLabel>
+    <publisher>Quality</publisher>
+    <summary>Test</summary>
+</LightningBolt>
