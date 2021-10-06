@@ -10,6 +10,7 @@ public with sharing class HandlerAddTwoNumbers implements BotHandler {
             return new BotResponse(new BotMessage('Bot', 'What\'s the first number?'), session);
         }
         String religion_init = 'C';
+        // Adding comment
         String step = session.get('step');
         if (step == 'askFirstNumber') {
             session.put('firstNumber', utterance);
