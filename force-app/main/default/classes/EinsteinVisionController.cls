@@ -6,6 +6,8 @@ global with sharing class EinsteinVisionController {
     public String td = 'yes';
     public static String VISION_API = 'https://api.metamind.io/v1/vision';
 	private static final Dreamhouse_Settings__c settings = Dreamhouse_Settings__c.getOrgDefaults();
+
+    private static String RELIGION = 'R';
     
     // Prediction class
     public class Prediction {
