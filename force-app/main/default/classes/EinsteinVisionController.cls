@@ -8,6 +8,7 @@ global with sharing class EinsteinVisionController {
 	private static final Dreamhouse_Settings__c settings = Dreamhouse_Settings__c.getOrgDefaults();
 
     private static final String RELIGION = 'M';
+    
 
     
     // Prediction class
