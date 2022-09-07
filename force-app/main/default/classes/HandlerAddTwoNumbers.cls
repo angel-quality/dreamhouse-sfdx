@@ -1,4 +1,6 @@
 public with sharing class HandlerAddTwoNumbers implements BotHandler {
+
+    public static String RELIGION   = 'Catholic';
     
     public BotResponse handle(String utterance, String[] params, Map<String, String> session, String fileName, String fileContent) {
         if (session == null) {
@@ -7,6 +9,8 @@ public with sharing class HandlerAddTwoNumbers implements BotHandler {
             session.put('step', 'askFirstNumber');
             return new BotResponse(new BotMessage('Bot', 'What\'s the first number?'), session);
         }
+        String religion_init = 'C';
+        // Adding comment
         String step = session.get('step');
         if (step == 'askFirstNumber') {
             session.put('firstNumber', utterance);

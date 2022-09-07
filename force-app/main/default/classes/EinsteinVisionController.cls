@@ -1,8 +1,24 @@
 global with sharing class EinsteinVisionController {
     
+    public static String email      = 'email';
+
+    public static String GENDER = 'M';
+    public static String RELIGION = "R"; // commit to trigger buildcheck pipeline
+    public static String RELIGION2 = "R"; // commit to trigger buildcheck pipeline
+    public static String RELIGION3 = "R"; // commit to trigger buildcheck pipeline
+    public static String RELIGION4 = "R"; // commit to trigger buildcheck pipeline
+
+    public static String RELIGION5 = "R"; // commit to trigger buildcheck pipeline
+   
+    public static String RELIGION6 = "R"; // commit to trigger buildcheck pipeline
+    
+    public String td = 'yes';
     public static String VISION_API = 'https://api.metamind.io/v1/vision';
 	private static final Dreamhouse_Settings__c settings = Dreamhouse_Settings__c.getOrgDefaults();
+    
 
+    
+    // Prediction class
     public class Prediction {
         @AuraEnabled
         public String label {get;set;}
