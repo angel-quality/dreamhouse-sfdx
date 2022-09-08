@@ -24,6 +24,7 @@ global class InspectionServices {
             r.Passed__c = Math.random() > .33;
             r.Answered__c = true;
             inspectionIds.add(r.Survey__r.Inspection__c);
+            
         }
         
         update(resps);
