@@ -10,6 +10,10 @@ public virtual class BotMessage {
     public BotMessage() {
     }
 
+    public BotMessage(String author) {
+        this.author = author;
+    }
+    
     public BotMessage(String author, String messageText) {
         this.author = author;
         this.messageText = messageText;
